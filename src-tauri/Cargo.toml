@@ -1,3 +1,6 @@
+[workspace]
+members = ["fuzz"]
+
 [package]
 name = "queryboard"
 version = "0.1.0"
@@ -14,6 +17,21 @@ edition = "2021"
 name = "queryboard_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = ["tauri-app"]
+# Isola o binário Tauri (janela, generate_context!) do resto do crate.
+# Sem isso, o fuzz target de sql::guard (que não tem nada a ver com GUI)
+# arrasta toda a árvore de dependências do Tauri, incluindo o macro
+# generate_context! — que quebra sob cargo-fuzz por divergência de
+# resolução de features entre grafo host/target quando --target é
+# passado explicitamente (mesmo sendo o mesmo triple do host). Ver
+# docs/adr/0002-parser-sql.md.
+tauri-app = []
+# Testes que precisam de um Postgres real (via testcontainers). Rodam
+# separado do `cargo test` normal — ver CLAUDE.md §9 ("nenhum teste toca
+# banco de produção"; testcontainers efêmero é a exceção permitida).
+integration = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -21,4 +39,16 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sqlparser = { version = "0.62.0", features = ["visitor"] }
+thiserror = "2.0.19"
+async-trait = "0.1.91"
+tokio-util = "0.7.19"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "sync", "process"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls", "chrono", "rust_decimal", "uuid", "json"] }
+regex = "1.13.1"
+futures-util = "0.3.33"
+chrono = "0.4.45"
+
+[dev-dependencies]
+testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 
