@@ -1,0 +1,6 @@
+[env]
+# Onde os tipos gerados por ts-rs (`#[ts(export)]`) são escritos quando
+# `cargo test` roda. `src/ipc/types.ts` (não gerado) reexporta esses
+# arquivos — ver src/model/mod.rs e CLAUDE.md §8 ("todo comando Tauri tem
+# tipo espelhado no front").
+TS_RS_EXPORT_DIR = { value = "../src/ipc/generated", relative = true }

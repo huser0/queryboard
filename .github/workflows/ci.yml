@@ -96,7 +96,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: cargo test --manifest-path src-tauri/Cargo.toml export_bindings
-      - run: git diff --exit-code -- src/ipc/types.ts
+      - run: git diff --exit-code -- src/ipc/generated
 
   build:
     strategy:
