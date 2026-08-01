@@ -35,6 +35,7 @@ pub fn run() {
             ipc::connections::connection_test,
             ipc::query::query_list,
             ipc::query::query_create,
+            ipc::query::query_extract_params,
             ipc::query::query_run,
             ipc::query_cancel,
         ])

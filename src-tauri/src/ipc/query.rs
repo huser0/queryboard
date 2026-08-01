@@ -10,9 +10,35 @@ use crate::db::driver::{Bind, ConnectionConfig, Limits, SecretRef};
 use crate::db::value::ResultSet;
 use crate::ipc::AppState;
 use crate::model::{NewQuery, QuerySummary};
-use crate::sql::params::{rewrite_placeholders, Cardinality, ParamBinding, DEFAULT_MAX_LIST_SIZE};
+use crate::sql::params::{
+    extract_params, rewrite_placeholders, Cardinality, ParamBinding, DEFAULT_MAX_LIST_SIZE,
+};
 use crate::sql::{validate, GuardError};
 use crate::store::{connections, queries};
+
+/// Extrai os nomes de parâmetro de um SQL ainda não salvo — é o que
+/// alimenta o painel de parâmetros do editor em tempo real, reusando a
+/// mesma tokenização do guard (`sql::params::extract_params`), nunca uma
+/// heurística à parte no frontend.
+#[tauri::command]
+pub async fn query_extract_params(
+    state: tauri::State<'_, AppState>,
+    sql: String,
+    connection_slug: String,
+) -> Result<Vec<String>, String> {
+    let connection = connections::get_by_slug(&state.pool, &connection_slug)
+        .await
+        .map_err(|e| e.to_string())?;
+    let validated = validate(&sql, connection.kind.as_dialect()).map_err(guard_error_to_string)?;
+
+    let mut names = Vec::new();
+    for occurrence in extract_params(&validated) {
+        if !names.contains(&occurrence.name) {
+            names.push(occurrence.name);
+        }
+    }
+    Ok(names)
+}
 
 #[tauri::command]
 pub async fn query_list(state: tauri::State<'_, AppState>) -> Result<Vec<QuerySummary>, String> {
