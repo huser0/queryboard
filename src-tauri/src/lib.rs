@@ -35,8 +35,12 @@ pub fn run() {
             ipc::connections::connection_test,
             ipc::query::query_list,
             ipc::query::query_create,
+            ipc::query::query_update,
+            ipc::query::query_delete,
             ipc::query::query_extract_params,
             ipc::query::query_run,
+            ipc::query::query_run_adhoc,
+            ipc::query::connection_schema,
             ipc::query_cancel,
         ])
         .run(tauri::generate_context!())

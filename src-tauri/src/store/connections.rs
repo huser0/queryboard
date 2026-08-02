@@ -14,6 +14,8 @@ pub enum ConnectionsError {
     DuplicateSlug { slug: String },
     #[error("connection '{slug}' não encontrada")]
     NotFound { slug: String },
+    #[error("não é possível remover: {count} query(s) salva(s) ainda usa(m) esta connection")]
+    InUseByQueries { count: i64 },
     #[error("erro de banco local")]
     Db(#[from] sqlx::Error),
 }
@@ -170,8 +172,23 @@ pub async fn get_by_slug(
 /// Devolve o `id` interno (chave do keyring) da connection removida, para
 /// que o chamador (IPC) possa apagar o segredo correspondente — este
 /// módulo não sabe nada sobre keyring, de propósito.
+///
+/// Checa proativamente se há queries salvas apontando pra esta connection
+/// antes de tentar o `DELETE` — a foreign key de `query.connection_slug`
+/// já rejeitaria de qualquer forma (`PRAGMA foreign_keys` ligado em
+/// `store/mod.rs`), mas um `COUNT` explícito dá uma mensagem de erro
+/// exata em vez de depender de decodificar a violação de FK do sqlite.
 pub async fn delete(pool: &SqlitePool, slug: &str) -> Result<String, ConnectionsError> {
     let existing = get_by_slug(pool, slug).await?;
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM query WHERE connection_slug = ?")
+        .bind(slug)
+        .fetch_one(pool)
+        .await?;
+    if count > 0 {
+        return Err(ConnectionsError::InUseByQueries { count });
+    }
+
     sqlx::query("DELETE FROM connection WHERE slug = ?")
         .bind(slug)
         .execute(pool)
@@ -242,6 +259,35 @@ mod tests {
         let deleted_id = delete(&pool, "erp_prod").await.unwrap();
         assert_eq!(deleted_id, created.id);
         assert!(list(&pool).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_is_rejected_when_a_saved_query_still_references_the_connection() {
+        use crate::model::{NewQuery, QueryParam};
+
+        let pool = test_pool().await;
+        create(&pool, &sample_input("erp_prod")).await.unwrap();
+        crate::store::queries::create(
+            &pool,
+            &NewQuery {
+                slug: "consulta_oferta".to_string(),
+                name: "Consulta oferta".to_string(),
+                connection_slug: "erp_prod".to_string(),
+                sql: "SELECT * FROM t WHERE id = :id".to_string(),
+                params: Some(vec![QueryParam {
+                    name: "id".to_string(),
+                    param_type: "string".to_string(),
+                    required: true,
+                }]),
+            },
+        )
+        .await
+        .unwrap();
+
+        let err = delete(&pool, "erp_prod").await.unwrap_err();
+        assert!(matches!(err, ConnectionsError::InUseByQueries { count: 1 }));
+        // A connection continua lá — nada foi removido.
+        assert_eq!(list(&pool).await.unwrap().len(), 1);
     }
 
     #[tokio::test]

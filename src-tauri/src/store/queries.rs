@@ -106,6 +106,54 @@ pub async fn create(pool: &SqlitePool, input: &NewQuery) -> Result<QuerySummary,
     })
 }
 
+/// Atualiza `name`/`connection_slug`/`sql`/`params` de uma query salva. O
+/// `slug` identifica a linha e não é renomeável aqui — mantém `selectedSlugs`
+/// /`executions` do front consistentes sem precisar remapear nada após um
+/// edit.
+pub async fn update(
+    pool: &SqlitePool,
+    slug: &str,
+    input: &NewQuery,
+) -> Result<QuerySummary, QueriesError> {
+    let existing = get_by_slug(pool, slug).await?;
+    let now = Utc::now().to_rfc3339();
+    let params = input.params.clone().unwrap_or_default();
+    let params_json = serde_json::to_string(&params).expect("Vec<QueryParam> sempre serializa");
+
+    sqlx::query(
+        "UPDATE query SET name = ?, connection_slug = ?, sql = ?, params_json = ?, updated_at = ? \
+         WHERE slug = ?",
+    )
+    .bind(&input.name)
+    .bind(&input.connection_slug)
+    .bind(&input.sql)
+    .bind(&params_json)
+    .bind(&now)
+    .bind(slug)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        if is_foreign_key_violation(&e) {
+            QueriesError::UnknownConnection {
+                connection_slug: input.connection_slug.clone(),
+            }
+        } else {
+            QueriesError::Db(e)
+        }
+    })?;
+
+    Ok(QuerySummary {
+        id: existing.id,
+        slug: slug.to_string(),
+        name: input.name.clone(),
+        connection_slug: input.connection_slug.clone(),
+        sql: input.sql.clone(),
+        params,
+        created_at: existing.created_at,
+        updated_at: now,
+    })
+}
+
 pub async fn list(pool: &SqlitePool) -> Result<Vec<QuerySummary>, QueriesError> {
     let rows: Vec<QueryRow> = sqlx::query_as(
         "SELECT id, slug, name, connection_slug, sql, params_json, created_at, updated_at \
@@ -128,6 +176,15 @@ pub async fn get_by_slug(pool: &SqlitePool, slug: &str) -> Result<QuerySummary, 
         slug: slug.to_string(),
     })?
     .try_into()
+}
+
+pub async fn delete(pool: &SqlitePool, slug: &str) -> Result<(), QueriesError> {
+    get_by_slug(pool, slug).await?;
+    sqlx::query("DELETE FROM query WHERE slug = ?")
+        .bind(slug)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -211,5 +268,86 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, QueriesError::DuplicateSlug { .. }));
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_row() {
+        let pool = test_pool().await;
+        seed_connection(&pool, "erp_prod").await;
+        create(&pool, &sample_input("consulta_oferta", "erp_prod"))
+            .await
+            .unwrap();
+
+        delete(&pool, "consulta_oferta").await.unwrap();
+
+        assert!(list(&pool).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_of_unknown_slug_is_not_found() {
+        let pool = test_pool().await;
+        let err = delete(&pool, "não-existe").await.unwrap_err();
+        assert!(matches!(err, QueriesError::NotFound { .. }));
+    }
+
+    #[tokio::test]
+    async fn update_changes_sql_and_params_but_keeps_slug_and_created_at() {
+        let pool = test_pool().await;
+        seed_connection(&pool, "erp_prod").await;
+        let created = create(&pool, &sample_input("consulta_oferta", "erp_prod"))
+            .await
+            .unwrap();
+
+        let mut new_input = sample_input("consulta_oferta", "erp_prod");
+        new_input.name = "Consulta oferta v2".to_string();
+        new_input.sql = "SELECT * FROM tb_offer WHERE offer_id = :offer_id AND ativo = true"
+            .to_string();
+        new_input.params = Some(vec![
+            QueryParam {
+                name: "offer_id".to_string(),
+                param_type: "number".to_string(),
+                required: true,
+            },
+        ]);
+
+        let updated = update(&pool, "consulta_oferta", &new_input).await.unwrap();
+
+        assert_eq!(updated.slug, "consulta_oferta");
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.created_at, created.created_at);
+        assert_eq!(updated.name, "Consulta oferta v2");
+        assert!(updated.sql.contains("ativo = true"));
+        assert_ne!(updated.updated_at, created.updated_at);
+
+        let listed = list(&pool).await.unwrap();
+        assert_eq!(listed.len(), 1, "update não deveria criar uma segunda linha");
+    }
+
+    #[tokio::test]
+    async fn update_of_unknown_slug_is_not_found() {
+        let pool = test_pool().await;
+        seed_connection(&pool, "erp_prod").await;
+        let err = update(&pool, "não-existe", &sample_input("x", "erp_prod"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, QueriesError::NotFound { .. }));
+    }
+
+    #[tokio::test]
+    async fn update_rejects_unknown_connection() {
+        let pool = test_pool().await;
+        seed_connection(&pool, "erp_prod").await;
+        create(&pool, &sample_input("consulta_oferta", "erp_prod"))
+            .await
+            .unwrap();
+
+        let err = update(
+            &pool,
+            "consulta_oferta",
+            &sample_input("consulta_oferta", "não_existe"),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, QueriesError::UnknownConnection { .. }));
     }
 }

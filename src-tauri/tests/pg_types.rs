@@ -281,6 +281,146 @@ async fn scalar_bind_by_position() {
     assert_eq!(result.rows[0][0], CellValue::Int(42));
 }
 
+/// Prepara uma tabela escrachável fora do driver de leitura (o guard
+/// bloqueia DDL de propósito — CLAUDE.md §2) só para os testes abaixo
+/// terem uma coluna com tipo de catálogo real (não um `::cast` em cima de
+/// um literal, que já entra tipado e não exercitaria a inferência de tipo
+/// do Postgres do jeito que `offer_id = :offer_id` contra uma tabela de
+/// verdade exercita).
+async fn setup_typed_table() {
+    use sqlx::{ConnectOptions, Connection};
+    let cfg = connection_config().await;
+    let mut raw = sqlx::postgres::PgConnectOptions::new()
+        .host(&cfg.host)
+        .port(cfg.port)
+        .username(&cfg.username)
+        .password(PASSWORD)
+        .database(cfg.database.as_deref().unwrap_or("postgres"))
+        .connect()
+        .await
+        .expect("conexão de setup deveria funcionar");
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS bind_repro ( \
+            id INTEGER PRIMARY KEY, \
+            price NUMERIC(10,2) NOT NULL, \
+            active BOOLEAN NOT NULL, \
+            sale_date DATE NOT NULL \
+        )",
+    )
+    .execute(&mut raw)
+    .await
+    .expect("create table");
+    sqlx::query("TRUNCATE bind_repro")
+        .execute(&mut raw)
+        .await
+        .expect("truncate");
+    sqlx::query(
+        "INSERT INTO bind_repro (id, price, active, sale_date) \
+         VALUES (5002, 149.90, true, '2026-07-20')",
+    )
+    .execute(&mut raw)
+    .await
+    .expect("insert");
+    let _ = raw.close().await;
+}
+
+/// Regressão: `Bind::Text` contra uma coluna cujo tipo o Postgres infere
+/// como algo diferente de texto (INTEGER, NUMERIC, BOOLEAN, ...) tinha
+/// que dar CERTO (o app sempre manda parâmetro como texto — ver
+/// `to_bind`) ou, na pior das hipóteses, um erro claro. Em vez disso
+/// devolvia silenciosamente zero linhas: sqlx-postgres sempre manda os
+/// parâmetros em formato binário; um `Bind::Text` cru contra uma coluna
+/// `INTEGER` fazia o Postgres decodificar os bytes UTF-8 da string como
+/// um inteiro binário de 4 bytes — lixo, não um erro. Ver
+/// `db::postgres::bind_one`/`coerce_text_to_inferred_type`.
+#[tokio::test]
+#[ignore]
+async fn text_bind_matches_integer_column_by_inferred_type() {
+    setup_typed_table().await;
+    let mut session = session().await;
+    let validated = validate("SELECT id FROM bind_repro WHERE id = $1", Dialect::Postgres).unwrap();
+    let result = session
+        .execute_select(
+            &validated,
+            &[Bind::Text("5002".to_string())],
+            &Limits::default(),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("execute_select deveria funcionar");
+    assert_eq!(
+        result.rows.len(),
+        1,
+        "Bind::Text('5002') deveria casar com a linha id=5002 (INTEGER)"
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn text_bind_matches_numeric_column_by_inferred_type() {
+    setup_typed_table().await;
+    let mut session = session().await;
+    let validated =
+        validate("SELECT id FROM bind_repro WHERE price = $1", Dialect::Postgres).unwrap();
+    let result = session
+        .execute_select(
+            &validated,
+            &[Bind::Text("149.90".to_string())],
+            &Limits::default(),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("execute_select deveria funcionar");
+    assert_eq!(result.rows.len(), 1, "Bind::Text('149.90') deveria casar com price NUMERIC");
+}
+
+#[tokio::test]
+#[ignore]
+async fn text_bind_matches_bool_column_by_inferred_type() {
+    setup_typed_table().await;
+    let mut session = session().await;
+    let validated =
+        validate("SELECT id FROM bind_repro WHERE active = $1", Dialect::Postgres).unwrap();
+    let result = session
+        .execute_select(
+            &validated,
+            &[Bind::Text("true".to_string())],
+            &Limits::default(),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("execute_select deveria funcionar");
+    assert_eq!(result.rows.len(), 1, "Bind::Text('true') deveria casar com active BOOLEAN");
+}
+
+/// Regressão específica: antes da correção cobrir DATE/TIME/TIMESTAMP*,
+/// um `Bind::Text` vazio ou preenchido contra uma coluna `DATE` não
+/// devolvia zero linhas silenciosamente — dava um erro de protocolo
+/// ("insufficient data left in message"), porque o texto era mandado com
+/// o mesmo número de bytes da string em vez dos 4 bytes binários que
+/// `DATE` espera.
+#[tokio::test]
+#[ignore]
+async fn text_bind_matches_date_column_by_inferred_type() {
+    setup_typed_table().await;
+    let mut session = session().await;
+    let validated = validate(
+        "SELECT id FROM bind_repro WHERE sale_date = $1",
+        Dialect::Postgres,
+    )
+    .unwrap();
+    let result = session
+        .execute_select(
+            &validated,
+            &[Bind::Text("2026-07-20".to_string())],
+            &Limits::default(),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("execute_select deveria funcionar");
+    assert_eq!(result.rows.len(), 1, "Bind::Text('2026-07-20') deveria casar com sale_date DATE");
+}
+
 #[tokio::test]
 #[ignore]
 async fn null_bind() {

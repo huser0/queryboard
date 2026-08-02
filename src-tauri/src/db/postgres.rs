@@ -136,7 +136,7 @@ impl Session for PostgresSession {
             .map(|c| ColumnMeta::new(c.name(), c.type_info().name(), None))
             .collect();
 
-        let query = bind_all(sqlx::query(AssertSqlSafe(sql.as_str())), binds)?;
+        let query = bind_all(sqlx::query(AssertSqlSafe(sql.as_str())), &statement, binds)?;
         let mut stream = query.fetch(&mut self.conn);
 
         let mut rows = Vec::with_capacity(limits.max_rows.min(limits.fetch_size));
@@ -218,12 +218,136 @@ impl PostgresSession {
     }
 }
 
+/// sqlx-postgres sempre manda os parâmetros em formato binário — hardcoded
+/// no crate (`formats: &[PgValueFormat::Binary]` em todo bind), não é
+/// configurável. Isso só é seguro se o tipo Rust escolhido tiver o OID **e
+/// a largura** exatos do tipo que o Postgres já inferiu para aquele `$n`
+/// neste `prepare` — ex.: uma coluna `INT4` precisa de `i32`, não `i64`
+/// (`INT8`), senão o servidor recebe 4 bytes onde esperava 8 (ou o
+/// contrário) e rejeita com "incorrect binary data format".
+///
+/// Como todo parâmetro chega aqui como `Bind::Text` (nenhum tipo é
+/// declarado do lado do usuário — ver `to_bind` em `ipc/query.rs`), sem
+/// essa conversão o Postgres recebe os bytes UTF-8 da string como se
+/// fossem um inteiro binário e decodifica **lixo silencioso, sem erro
+/// nenhum** — foi assim que `offer_id = :offer_id` com `offer_id`
+/// `INTEGER` sempre devolvia zero linhas em vez do erro esperado ou do
+/// valor certo.
+///
+/// Usa `statement.parameters()` (metadados do `prepare` já feito para
+/// coluna) para saber o tipo real de cada `$n` e escolher o bind Rust com
+/// OID/largura correspondente. Tipos sem conversão conhecida aqui (uuid,
+/// json, ...) continuam como texto — compatível o bastante na maioria dos
+/// casos, já que o formato binário do Postgres para TEXT/VARCHAR/BPCHAR é
+/// idêntico aos bytes UTF-8 puros.
 fn bind_all<'q>(
     mut query: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
+    statement: &sqlx::postgres::PgStatement,
     binds: &'q [Bind],
 ) -> Result<sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>, DbError> {
-    for bind in binds {
-        query = match bind {
+    let param_types = match statement.parameters() {
+        Some(sqlx::Either::Left(types)) => Some(types),
+        _ => None,
+    };
+
+    for (idx, bind) in binds.iter().enumerate() {
+        let inferred_type_name = param_types.and_then(|types| types.get(idx)).map(TypeInfo::name);
+        query = bind_one(query, bind, inferred_type_name)?;
+    }
+    Ok(query)
+}
+
+/// Um `Bind::Text` cru, já convertido para o tipo Rust cujo OID/largura
+/// bate exatamente com o que o Postgres inferiu para o parâmetro alvo —
+/// calculado como valor puro primeiro (sem tocar em `query`) para o
+/// `match` final em `bind_one` só precisar mover `query` uma vez por
+/// caminho, sem confundir o borrow checker com binds parciais dentro de
+/// outro `match`.
+enum CoercedText {
+    Int16(i16),
+    Int32(i32),
+    Int64(i64),
+    Float32(f32),
+    Float64(f64),
+    Decimal(sqlx::types::Decimal),
+    Bool(bool),
+    Date(chrono::NaiveDate),
+    Time(chrono::NaiveTime),
+    Timestamp(chrono::NaiveDateTime),
+    TimestampTz(chrono::DateTime<chrono::Utc>),
+}
+
+/// Aceita `T` ou espaço como separador entre data e hora — o app mostra
+/// timestamps com `T` (ver `decode_cell`), mas o próprio Postgres usa
+/// espaço no formato padrão dele, e é razoável aceitar os dois na hora de
+/// digitar de volta.
+fn parse_naive_datetime(raw: &str) -> Result<chrono::NaiveDateTime, DbError> {
+    raw.parse::<chrono::NaiveDateTime>()
+        .or_else(|_| chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f"))
+        .map_err(|_| {
+            DbError::driver(format!(
+                "valor '{raw}' não é um timestamp válido (formato AAAA-MM-DDTHH:MM:SS)"
+            ))
+        })
+}
+
+fn coerce_text_to_inferred_type(raw: &str, type_name: &str) -> Result<Option<CoercedText>, DbError> {
+    let invalid =
+        |expected: &str| DbError::driver(format!("valor '{raw}' não é um {expected} válido"));
+    let coerced = match type_name {
+        "INT2" => CoercedText::Int16(raw.parse().map_err(|_| invalid("inteiro"))?),
+        "INT4" => CoercedText::Int32(raw.parse().map_err(|_| invalid("inteiro"))?),
+        "INT8" => CoercedText::Int64(raw.parse().map_err(|_| invalid("inteiro"))?),
+        "FLOAT4" => CoercedText::Float32(raw.parse().map_err(|_| invalid("número"))?),
+        "FLOAT8" => CoercedText::Float64(raw.parse().map_err(|_| invalid("número"))?),
+        "NUMERIC" => CoercedText::Decimal(raw.parse().map_err(|_| invalid("decimal"))?),
+        "BOOL" => CoercedText::Bool(match raw {
+            "true" | "t" | "1" => true,
+            "false" | "f" | "0" => false,
+            _ => return Err(invalid("booleano")),
+        }),
+        "DATE" => CoercedText::Date(
+            raw.parse()
+                .map_err(|_| invalid("data (formato AAAA-MM-DD)"))?,
+        ),
+        "TIME" => CoercedText::Time(
+            raw.parse()
+                .map_err(|_| invalid("hora (formato HH:MM:SS)"))?,
+        ),
+        "TIMESTAMP" => CoercedText::Timestamp(parse_naive_datetime(raw)?),
+        "TIMESTAMPTZ" => CoercedText::TimestampTz(
+            chrono::DateTime::parse_from_rfc3339(raw)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .map_err(|_| invalid("timestamp com fuso (formato RFC3339)"))?,
+        ),
+        _ => return Ok(None),
+    };
+    Ok(Some(coerced))
+}
+
+fn bind_one<'q>(
+    query: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
+    bind: &'q Bind,
+    inferred_type_name: Option<&str>,
+) -> Result<sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>, DbError> {
+    let coerced = match (bind, inferred_type_name) {
+        (Bind::Text(raw), Some(type_name)) => coerce_text_to_inferred_type(raw, type_name)?,
+        _ => None,
+    };
+
+    let query = match coerced {
+        Some(CoercedText::Int16(v)) => query.bind(v),
+        Some(CoercedText::Int32(v)) => query.bind(v),
+        Some(CoercedText::Int64(v)) => query.bind(v),
+        Some(CoercedText::Float32(v)) => query.bind(v),
+        Some(CoercedText::Float64(v)) => query.bind(v),
+        Some(CoercedText::Decimal(v)) => query.bind(v),
+        Some(CoercedText::Bool(v)) => query.bind(v),
+        Some(CoercedText::Date(v)) => query.bind(v),
+        Some(CoercedText::Time(v)) => query.bind(v),
+        Some(CoercedText::Timestamp(v)) => query.bind(v),
+        Some(CoercedText::TimestampTz(v)) => query.bind(v),
+        None => match bind {
             // Bind nulo sem tipo declarado ainda não é suportado de forma
             // geral — depende dos metadados de parâmetro da Query (item
             // 3.5 do roadmap). Por ora, assume texto.
@@ -239,8 +363,8 @@ fn bind_all<'q>(
             Bind::Float(f) => query.bind(*f),
             Bind::Text(s) => query.bind(s.clone()),
             Bind::Bytes(b) => query.bind(b.clone()),
-        };
-    }
+        },
+    };
     Ok(query)
 }
 
