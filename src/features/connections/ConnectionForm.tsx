@@ -134,7 +134,7 @@ export function ConnectionForm({ onSubmit, submitting }: ConnectionFormProps) {
         />
       </label>
 
-      <button type="submit" disabled={submitting}>
+      <button type="submit" data-variant="primary" disabled={submitting}>
         {submitting ? "Salvando…" : "Salvar connection"}
       </button>
     </form>

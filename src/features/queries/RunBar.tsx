@@ -19,13 +19,19 @@ export function RunBar({
 }: RunBarProps) {
   return (
     <div aria-label="Barra de execução">
-      <button type="button" onClick={onRun} disabled={status === "running"}>
-        Executar
+      <button
+        type="button"
+        data-variant="primary"
+        className="run-button"
+        onClick={onRun}
+        disabled={status === "running"}
+      >
+        <span aria-hidden="true">▶</span> Executar
       </button>
       <button type="button" onClick={onCancel} disabled={status !== "running"}>
         Cancelar
       </button>
-      <span role="status">
+      <span role="status" className="status-pill" data-status={status}>
         {status === "idle" && "pronto"}
         {status === "running" && "executando…"}
         {status === "ok" && "concluído"}
@@ -33,8 +39,9 @@ export function RunBar({
         {status === "error" && "erro"}
       </span>
       {rowCount !== null && elapsedMs !== null && (
-        <span>
-          {rowCount} linha(s) em {elapsedMs}ms
+        <span className="result-meta" data-status={status}>
+          <span aria-hidden="true">{status === "error" ? "✕" : "✓"}</span>
+          {rowCount} linha(s) · {elapsedMs}ms
         </span>
       )}
       {truncated && (

@@ -19,6 +19,7 @@ export function ConnectionList({
   onDelete,
 }: ConnectionListProps) {
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
+  const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
 
   async function handleTest(slug: string) {
     setTestStates((prev) => ({ ...prev, [slug]: { status: "idle" } }));
@@ -33,8 +34,19 @@ export function ConnectionList({
     }
   }
 
+  async function handleDelete(slug: string) {
+    try {
+      await onDelete(slug);
+      setDeleteErrors((prev) =>
+        Object.fromEntries(Object.entries(prev).filter(([s]) => s !== slug)),
+      );
+    } catch (err) {
+      setDeleteErrors((prev) => ({ ...prev, [slug]: String(err) }));
+    }
+  }
+
   if (connections.length === 0) {
-    return <p>Nenhuma connection cadastrada ainda.</p>;
+    return <p className="empty-state">Nenhuma connection cadastrada ainda.</p>;
   }
 
   return (
@@ -53,12 +65,15 @@ export function ConnectionList({
             <button type="button" onClick={() => void handleTest(conn.slug)}>
               Testar
             </button>
-            <button type="button" onClick={() => void onDelete(conn.slug)}>
+            <button type="button" data-variant="danger" onClick={() => void handleDelete(conn.slug)}>
               Remover
             </button>
             {testState.status === "ok" && <span role="status">conexão ok</span>}
             {testState.status === "error" && (
               <span role="alert">falha: {testState.message}</span>
+            )}
+            {deleteErrors[conn.slug] !== undefined && (
+              <span role="alert">{deleteErrors[conn.slug]}</span>
             )}
           </li>
         );

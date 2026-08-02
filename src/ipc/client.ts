@@ -40,6 +40,16 @@ export interface ResultSet {
   elapsed_ms: number;
 }
 
+export interface ColumnInfo {
+  name: string;
+  data_type: string;
+}
+
+export interface TableInfo {
+  name: string;
+  columns: ColumnInfo[];
+}
+
 export const client = {
   connectionList: (): Promise<ConnectionSummary[]> =>
     invoke("connection_list"),
@@ -58,6 +68,11 @@ export const client = {
   queryCreate: (input: NewQuery): Promise<QuerySummary> =>
     invoke("query_create", { input }),
 
+  queryUpdate: (slug: string, input: NewQuery): Promise<QuerySummary> =>
+    invoke("query_update", { slug, input }),
+
+  queryDelete: (slug: string): Promise<void> => invoke("query_delete", { slug }),
+
   queryExtractParams: (sql: string, connectionSlug: string): Promise<string[]> =>
     invoke("query_extract_params", { sql, connectionSlug }),
 
@@ -68,8 +83,19 @@ export const client = {
   ): Promise<ResultSet> =>
     invoke("query_run", { executionId, slug, params }),
 
+  queryRunAdhoc: (
+    executionId: string,
+    connectionSlug: string,
+    sql: string,
+    params: Record<string, string>,
+  ): Promise<ResultSet> =>
+    invoke("query_run_adhoc", { executionId, connectionSlug, sql, params }),
+
   queryCancel: (executionId: string): Promise<void> =>
     invoke("query_cancel", { executionId }),
+
+  connectionSchema: (connectionSlug: string): Promise<TableInfo[]> =>
+    invoke("connection_schema", { connectionSlug }),
 };
 
 export type QueryboardClient = typeof client;

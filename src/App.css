@@ -1,10 +1,3 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafb);
-}
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
@@ -19,98 +12,878 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+
+  --color-primary: #396cd8;
+  --color-primary-contrast: #ffffff;
+  --color-danger: #c62828;
+  --color-danger-bg: #fdecea;
+  --color-success: #1a7f37;
+  --color-success-bg: #e6f4ea;
+  --color-warning: #9a6700;
+  --color-warning-bg: #fff6e0;
+  --color-muted-bg: #eceef1;
+  --color-muted-text: #55606b;
+  --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.05), 0 1px 1px rgba(15, 15, 15, 0.03);
 }
 
 .container {
   margin: 0;
-  padding-top: 10vh;
+  padding: 1.25rem clamp(1.5rem, 3vw, 3rem) 3rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  text-align: center;
+  gap: 1.25rem;
+  text-align: left;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
+/* Cabeçalho compacto — antes era um <h1> centralizado ocupando uma linha
+   inteira sozinho e um banner de conexão ativa em outra logo abaixo; numa
+   tela ultrawide isso é espaço vertical desperdiçado que o Painel
+   aproveitaria melhor (ver pedido de layout ultrawide). */
+.app-header {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e2e2;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
 }
 
-a:hover {
-  color: #535bf2;
+/* Antes a sidebar só posicionava a lista — nenhum fundo/borda própria,
+   então ela "flutuava" direto sobre o bg da página (mesma cor), sem
+   nenhum contêiner visual separando-a do resto. Agora é um card, igual
+   às seções do painel. */
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  padding: 1.25rem 1.25rem 1.5rem;
+  box-shadow: var(--shadow-card);
+}
+
+.sidebar > button[data-variant="primary"] {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.main-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.active-connection-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background-color: #eef2ff;
+  color: #2f3f8f;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.active-connection-banner::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.active-connection-banner[data-connected="false"] {
+  background-color: var(--color-muted-bg);
+  color: var(--color-muted-text);
 }
 
 h1 {
-  text-align: center;
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+
+/* "Connections"/"Painel" viravam títulos do mesmo peso do <h1> do app —
+   competindo por atenção em vez de ler como rótulo de seção. Um rótulo
+   pequeno, maiúsculo e discreto deixa claro que é estrutura de
+   navegação, não conteúdo. */
+h2 {
+  margin: 0 0 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted-text);
+}
+
+section {
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-card);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #444;
+}
+
+form[aria-label="Nova connection"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e2e2;
+}
+
+form[aria-label="Nova connection"] label {
+  flex: 1 1 140px;
 }
 
 input,
+select,
 button {
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  border: 1px solid #d8d8d8;
+  padding: 0.5em 0.8em;
+  font-size: 0.95em;
   font-weight: 500;
   font-family: inherit;
   color: #0f0f0f;
   background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s;
 }
 
 button {
   cursor: pointer;
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 button:hover {
   border-color: #396cd8;
 }
+
 button:active {
   border-color: #396cd8;
   background-color: #e8e8e8;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  border-color: #d8d8d8;
+  background-color: #f0f0f0;
+}
+
+/* CTA principal de cada seção (Executar, Executar tudo, Salvar
+   connection, + Nova connection) — sem isto todo botão tinha o mesmo
+   peso visual, inclusive "Remover", e não dava pra distinguir a ação
+   default de uma ação destrutiva num relance. */
+button[data-variant="primary"] {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-weight: 600;
+}
+
+button[data-variant="primary"]:hover {
+  border-color: var(--color-primary);
+  filter: brightness(1.08);
+}
+
+button[data-variant="primary"]:disabled {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  opacity: 0.45;
+}
+
+/* Botão de rodar em formato pill com um ícone de play — antes era um
+   botão retangular igual a qualquer outro, sem nada que o destacasse
+   como A ação principal do card/painel. */
+.run-button {
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.run-button span[aria-hidden="true"] {
+  font-size: 0.7em;
+}
+
+/* Indicador de sucesso/erro + contagem de linhas + tempo — antes era só
+   texto solto ("N linha(s) em Xms"), sem nenhum destaque visual pra
+   confirmar rapidamente que a consulta rodou (ou falhou) e quantos dados
+   voltaram. */
+.result-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-success);
+}
+
+.result-meta[data-status="error"] {
+  color: var(--color-danger);
+}
+
+button[data-variant="danger"] {
+  color: var(--color-danger);
+  border-color: #e7b3ae;
+  background-color: transparent;
+}
+
+button[data-variant="danger"]:hover {
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
 input,
+select,
 button {
   outline: none;
 }
 
-#greet-input {
-  margin-right: 5px;
+input:focus,
+select:focus {
+  border-color: #396cd8;
+}
+
+/* :focus-visible (não :focus puro) — mantém o ring só pra navegação por
+   teclado; um clique de mouse não devia deixar o botão com halo preso. O
+   `outline: none` acima zera o outline nativo pros três elementos, então
+   sem isto o foco por Tab ficava completamente invisível. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+ul[aria-label="Connections cadastradas"] {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Antes as 3 ações (selecionar/Testar/Remover) + status ficavam todas
+   numa linha só, disputando espaço e quebrando de forma esquisita numa
+   sidebar de 300px. Agora cada connection é uma "linha-cartão": o botão
+   de seleção ocupa a linha inteira (nome em destaque, kind/slug
+   discretos), as ações pequenas ficam por baixo. */
+ul[aria-label="Connections cadastradas"] li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0.4rem 0.4rem;
+  border-radius: 8px;
+  background-color: var(--color-muted-bg);
+}
+
+ul[aria-label="Connections cadastradas"] li > button:first-child:not([aria-current="true"]) {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+ul[aria-label="Connections cadastradas"] li > button:first-child {
+  flex: 1 1 100%;
+  text-align: left;
+  padding: 0.3rem 0.4rem;
+}
+
+ul[aria-label="Connections cadastradas"] li > button:not(:first-child) {
+  font-size: 0.76rem;
+  padding: 0.3rem 0.55rem;
+}
+
+ul[aria-label="Connections cadastradas"] li [role="status"],
+ul[aria-label="Connections cadastradas"] li [role="alert"] {
+  flex: 1 1 100%;
+  font-size: 0.76rem;
+}
+
+ul[aria-label="Connections cadastradas"] button[aria-current="true"] {
+  border-color: #396cd8;
+  background-color: #396cd8;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Explorador de schema — tabelas/colunas da connection ativa, na
+   sidebar. Ajuda a escrever SQL sem ficar trocando de janela pra
+   conferir nome de coluna. */
+.schema-explorer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e2e2;
+}
+
+.schema-explorer__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.schema-explorer__heading h2 {
+  margin: 0;
+}
+
+.schema-explorer__reload {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.9rem;
+  color: var(--color-muted-text);
+}
+
+.schema-explorer__status {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-muted-text);
+}
+
+.schema-explorer__tables {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.schema-explorer__table-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.schema-explorer__table-toggle span[aria-hidden="true"] {
+  flex-shrink: 0;
+  font-size: 0.7em;
+  color: var(--color-muted-text);
+}
+
+.schema-explorer__columns {
+  list-style: none;
+  margin: 0 0 0.3rem 1.3rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.schema-explorer__columns li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.76rem;
+}
+
+.schema-explorer__column-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schema-explorer__column-type {
+  flex-shrink: 0;
+  color: var(--color-muted-text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 1rem 0.75rem;
+  border: 1px dashed #d8d8d8;
+  border-radius: 8px;
+  color: var(--color-muted-text);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+[role="status"] {
+  color: #1a7f37;
+  font-size: 0.85rem;
+}
+
+[role="alert"] {
+  color: #c62828;
+  font-size: 0.85rem;
+}
+
+/* Pill colorido por estado de execução — antes "executando…"/"erro"/
+   "cancelado" eram só texto plano, todos com a mesma cor de [role=status]
+   (verde), o que não ajuda a diferenciar rodando/ok/erro/cancelado numa
+   varredura rápida quando várias caixas estão rodando ao mesmo tempo. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-muted-text);
+  background-color: var(--color-muted-bg);
+}
+
+.status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-pill[data-status="running"] {
+  color: var(--color-warning);
+  background-color: var(--color-warning-bg);
+}
+
+.status-pill[data-status="ok"] {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+}
+
+.status-pill[data-status="error"] {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+.run-summary {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-muted-text);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background-color: var(--color-muted-bg);
+}
+
+fieldset[aria-label="Parâmetros"],
+fieldset[aria-label="Queries do painel"] {
+  margin-top: 1rem;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+fieldset[aria-label="Parâmetros"] label {
+  flex: 1 1 140px;
+}
+
+fieldset[aria-label="Queries do painel"] label {
+  flex: 1 1 220px;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cm-editor {
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+[aria-label="Barra de execução"] {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+section > button {
+  margin-top: 1rem;
+}
+
+/* Divide o "Painel" em zonas visuais claras — antes seletor de queries,
+   parâmetros, botão de adicionar, os cards ad-hoc e a barra de execução
+   eram todos filhos soltos do mesmo <section>, sem nenhuma separação;
+   lia como um formulário longo em vez de passos distintos (escolher →
+   parametrizar → escrever/rodar → resultado). */
+.board-adhoc-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e2e2;
+}
+
+[aria-label="Barra de execução do painel"] {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e2e2;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Barra de abas — uma por consulta ad-hoc aberta. Fechar (×) e arrastar
+   pra reordenar moram aqui; só a aba ativa renderiza seu card abaixo. */
+.adhoc-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.adhoc-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  border-radius: 8px 8px 0 0;
+  background-color: var(--color-muted-bg);
+  cursor: grab;
+}
+
+.adhoc-tabs__tab[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.adhoc-tabs__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 220px;
+  border: none;
+  border-radius: 8px 0 0 0;
+  background-color: transparent;
+  box-shadow: none;
+  padding: 0.45rem 0.5rem 0.45rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adhoc-tabs__select[aria-selected="true"] {
+  background-color: #ffffff;
+  border-bottom: 2px solid var(--color-primary);
+  font-weight: 600;
+}
+
+.adhoc-tabs__saved-badge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-success);
+}
+
+.adhoc-tabs__close {
+  border: none;
+  border-radius: 0 8px 0 0;
+  background-color: transparent;
+  box-shadow: none;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--color-muted-text);
+}
+
+.adhoc-tabs__close:hover {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+.adhoc-tabs__add {
+  border-radius: 8px;
+  background-color: transparent;
+  box-shadow: none;
+  padding: 0.4rem 0.7rem;
+  font-weight: 700;
+  color: var(--color-muted-text);
+}
+
+.status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--color-muted-text);
+}
+
+.status-dot[data-status="running"] {
+  background-color: var(--color-warning);
+}
+
+.status-dot[data-status="ok"] {
+  background-color: var(--color-success);
+}
+
+.status-dot[data-status="error"] {
+  background-color: var(--color-danger);
+}
+
+.board-panel__save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e2e2;
+}
+
+.board-panel__save-row input {
+  flex: 1 1 220px;
+}
+
+.error-panel {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-danger);
+  background-color: var(--color-danger-bg);
+  font-size: 0.85rem;
+}
+
+/* Grade de resultado — ver ResultGrid.tsx sobre por que é div-based
+   em vez de <table>. */
+.result-grid {
+  margin-top: 1rem;
+  overflow: auto;
+  max-height: 480px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.result-grid__row {
+  display: grid;
+}
+
+.result-grid__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #f0f1f3;
+  border-bottom: 1px solid #d8d8d8;
+}
+
+.result-grid__body {
+  position: relative;
+}
+
+.result-grid__row--body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.result-grid__row--body:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.result-grid__cell {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-right: 1px solid #edecec;
+  display: flex;
+  align-items: center;
+}
+
+.result-grid__header .result-grid__cell {
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.result-grid__cell[data-numeric="true"] {
+  justify-content: flex-end;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.board-grid {
+  margin-top: 1rem;
+  display: grid;
+  /* minmax(..., 900px), não 1fr — numa tela ultrawide um card só
+     esticado até a borda do painel fica ilegível; melhor deixar a grade
+     abrir mais colunas do que esticar um card gigante. */
+  grid-template-columns: repeat(auto-fit, minmax(420px, 900px));
+  gap: 1rem;
+  align-items: start;
+}
+
+.board-panel {
+  max-width: 900px;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  background-color: #fafafa;
+}
+
+.board-panel h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.board-panel__meta {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: #666;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
     background-color: #2f2f2f;
+
+    --color-danger-bg: #4a2323;
+    --color-success-bg: #1f3a28;
+    --color-warning-bg: #4a3c14;
+    --color-muted-bg: #3a3a3a;
+    --color-muted-text: #b8b8b8;
+    --shadow-card: none;
   }
 
-  a:hover {
-    color: #24c8db;
+  .app-header {
+    border-bottom-color: #3d3d3d;
+  }
+
+  section,
+  .sidebar {
+    background-color: #262626;
+    border-color: #3d3d3d;
+  }
+
+  ul[aria-label="Connections cadastradas"] li {
+    background-color: #333;
+  }
+
+  .empty-state {
+    border-color: #4a4a4a;
+  }
+
+  .schema-explorer {
+    border-top-color: #3d3d3d;
+  }
+
+  form[aria-label="Nova connection"],
+  .board-adhoc-zone,
+  [aria-label="Barra de execução do painel"],
+  .board-panel__save-row {
+    border-color: #3d3d3d;
+  }
+
+  .adhoc-tabs__select[aria-selected="true"] {
+    background-color: #262626;
+  }
+
+  .active-connection-banner {
+    background-color: #1f2a4d;
+    color: #c9d4ff;
+  }
+
+  .active-connection-banner[data-connected="false"] {
+    background-color: var(--color-muted-bg);
+    color: var(--color-muted-text);
+  }
+
+  ul[aria-label="Connections cadastradas"] button[aria-current="true"] {
+    background-color: #396cd8;
+    color: #ffffff;
   }
 
   input,
+  select,
   button {
     color: #ffffff;
     background-color: #0f0f0f98;
+    border-color: #4a4a4a;
   }
+
   button:active {
     background-color: #0f0f0f69;
+  }
+
+  button:disabled {
+    background-color: #1a1a1a;
+    border-color: #3d3d3d;
+  }
+
+  label {
+    color: #cfcfcf;
+  }
+
+  .result-grid {
+    border-color: #3d3d3d;
+  }
+
+  .result-grid__header {
+    background-color: #333;
+    border-bottom-color: #4a4a4a;
+  }
+
+  .result-grid__cell {
+    border-right-color: #3d3d3d;
+  }
+
+  .result-grid__row--body:nth-child(even) {
+    background-color: #2b2b2b;
+  }
+
+  fieldset[aria-label="Parâmetros"],
+  fieldset[aria-label="Queries do painel"],
+  .board-panel {
+    border-color: #4a4a4a;
+    background-color: #262626;
+  }
+
+  .board-panel__meta {
+    color: #999;
+  }
+
+  .cm-editor {
+    border-color: #4a4a4a;
   }
 }
