@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: queryboard-postgres
+    command: ["-c", "fsync=off"]
+    environment:
+      POSTGRES_USER: queryboard
+      POSTGRES_PASSWORD: queryboard
+      POSTGRES_DB: queryboard
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./dev/seed-postgres.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queryboard"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

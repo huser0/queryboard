@@ -19,21 +19,13 @@ Passo a passo para levantar um Postgres de teste e rodar o app ponta a ponta.
 ### 2. Subir o Postgres de teste
 
 ```bash
-docker run -d --name queryboard-postgres \
-  -e POSTGRES_USER=queryboard \
-  -e POSTGRES_PASSWORD=queryboard \
-  -e POSTGRES_DB=queryboard \
-  -p 55432:5432 \
-  postgres:16-alpine -c fsync=off
-
-# espera o banco aceitar conexões
-until docker exec queryboard-postgres pg_isready -U queryboard; do sleep 1; done
-
-# popula com os dados de teste
-docker exec -i queryboard-postgres psql -U queryboard -d queryboard < dev/seed-postgres.sql
+docker compose up -d --wait
 ```
 
-O container fica ouvindo em `localhost:55432`. Para recomeçar do zero: `docker rm -f queryboard-postgres` e repita os três comandos.
+O `docker-compose.yml` sobe o Postgres, espera o healthcheck ficar `healthy`
+e popula com `dev/seed-postgres.sql` automaticamente (via
+`docker-entrypoint-initdb.d`, na primeira inicialização) — nenhum passo
+manual extra. O container fica ouvindo em `localhost:55432`.
 
 Os dados semeados (`dev/seed-postgres.sql`) espelham o cenário de investigação do `CLAUDE.MD` (oferta → produto → envio → relação oferta×loja×produto): 12 produtos (com `category` e `active`), 6 lojas (com `region`/`city`) e 35 ofertas (com `discount_percent` e `notes`) — dá pra testar filtro por texto (`LIKE`), número, data, e booleano. Os cinco primeiros IDs são os casos canônicos, propositalmente quebrados:
 
@@ -110,5 +102,6 @@ Pra rodar **várias consultas em paralelo**, clique em **Adicionar SQL ad-hoc** 
 ### Encerrar
 
 ```bash
-docker stop queryboard-postgres   # ou `docker rm -f queryboard-postgres` para descartar os dados
+docker compose stop   # pausa, mantém os dados pra próxima vez
+docker compose down   # remove o container e os dados (recomeça do zero na próxima subida)
 ```
