@@ -62,20 +62,60 @@ App desktop com **Tauri v2** (binário pequeno, sem Electron, usa o webview do S
 - **Regras:** CEL (Common Expression Language) — linguagem de expressão sandboxed, sem loops, sem I/O, sem chamada de função arbitrária. Ver seção 5.
 - **Testes:** `cargo test` no core, `vitest` no front
 
-### Camada de banco — decisão em aberto
+### Camada de banco — decisão do Oracle (fechada)
 
-O ponto sensível é o Oracle. Duas rotas:
+Ver `docs/adr/0001-camada-oracle.md` (descarte da Rota A, `oracledb` exige nightly) e
+`docs/adr/0006-camada-oracle-rota-b-odpic.md` (Rota B revisada para o crate `oracle`/ODPI-C
+depois do follow-up K1–K9 contra Oracle real, substituindo a recomendação original de
+sidecar Python da 0001).
 
-| | **Rota A — Rust puro** | **Rota B — sidecar Python** |
+O ponto sensível era o Oracle. Duas rotas foram avaliadas:
+
+| | **Rota A — Rust puro** | **Rota B — crate OCI/Instant Client** |
 |---|---|---|
-| Oracle | crate `oracledb` (thin, sem Instant Client) | `python-oracledb` thin |
-| Postgres / MySQL | `sqlx` | `psycopg` / `PyMySQL` |
-| Bundle | ~10 MB, binário único | ~50 MB (PyInstaller embutido) |
-| Risco | crate Oracle é jovem, menos rodado em produção | driver oficial da Oracle, muito maduro |
+| Oracle | crate `oracledb`/`oraclemcp-driver-cx` (thin, sem Instant Client) | crate `oracle` (ODPI-C) |
+| Postgres / MySQL | `sqlx` | `sqlx` |
+| Bundle | ~10 MB, binário único | binário único + Oracle Instant Client instalado na máquina |
+| Risco | crate Oracle jovem, menos rodado em produção | crate maduro (2.3M+ downloads), mas exige lib nativa da Oracle em runtime |
 
-**Rota A é a preferida** (é o que justifica escolher Tauri). Mas ela só se confirma depois do spike do item 1 do roadmap: conectar o crate `oracledb` no Oracle real do usuário e validar tipos, `NUMBER` de precisão alta, `CLOB`, `DATE`/`TIMESTAMP WITH TIME ZONE` e autenticação em uso.
+Spike real (roadmap item 1) rodado contra um Oracle Database Free local
+(`gvenzl/oracle-free:23-slim`, via `docker compose --profile oracle`):
 
-**Enquanto isso não for decidido, o código de banco fica atrás do trait `Driver`** (`connect`, `execute_select`, `cancel`), sem vazar tipos específicos de driver para o resto da aplicação. A troca de rota deve custar um módulo, não uma refatoração.
+- **Rota A descartada**: o crate `oracledb` está no meio de uma
+  transferência de nome/propriedade para a Oracle Corp (README do projeto:
+  "the original `oracledb`... names are being handed to Oracle"), o código
+  ativo continua como `oraclemcp-driver-cx` — crate com ~7 semanas de
+  existência, poucos downloads, README com alegações de benchmark
+  infladas para algo tão novo. Mais grave: **o feature-set `default` da
+  dependência `asupersync` exige Rust nightly pra compilar**
+  (`#![feature(try_trait_v2)]`), sem opção de desligar isso do lado do
+  consumidor — bloqueio duro, não avaliação de risco.
+- **Rota B confirmada**: crate `oracle` (ODPI-C) validado de ponta a ponta
+  contra o Oracle Database Free real — conexão via EasyConnect, `NUMBER`
+  de alta precisão (decodificado como string, nunca `f64`/`rust_decimal`),
+  `CLOB`, `DATE` (inclui hora), `TIMESTAMP WITH TIME ZONE`,
+  `SET TRANSACTION READ ONLY` bloqueando escrita (`ORA-01456`), bind
+  nomeado e bind posicional com placeholder repetido (`:id + :id` com um
+  valor só — confirma que a ordem de `bind_order` do `sql/params.rs` já
+  bate com a ordem posicional que o driver ODPI-C espera, sem precisar de
+  nome). Cancelamento via `Connection::break_execution()` chamado de outra
+  thread sobre a mesma conexão (`Connection` é `Send + Sync`), sem
+  precisar de conexão auxiliar como Postgres/MySQL. O crate carrega
+  `libclntsh` (Oracle Instant Client) via `dlopen` em **runtime**, não em
+  link-time — buildar o projeto não exige Instant Client instalado, só
+  conectar de verdade exige.
+- `tnsnames.ora`/wallet **não foi validado** (o ambiente onde isso foi
+  implementado não tinha um `tnsnames.ora` real disponível) — só o
+  caminho EasyConnect (`host:porta/serviço`) foi testado. Documentado como
+  limitação conhecida em `README.md`.
+
+Implementação em `db/oracle.rs`. Ver também `db/mysql.rs` (sem decisão em
+aberto — `sqlx` cobre MySQL sem ressalvas).
+
+**O código de banco fica atrás do trait `Driver`** (`connect`,
+`execute_select`, `cancel`), sem vazar tipos específicos de driver para o
+resto da aplicação — isso permitiu trocar de rota depois do spike sem
+tocar em mais nada fora de `db/oracle.rs`.
 
 ---
 
@@ -326,11 +366,11 @@ Se uma tarefa parecer exigir algo desta lista, pare e pergunte antes de codar.
 
 ## 12. Roadmap (ordem sugerida)
 
-1. **Spike Oracle** — crate `oracledb` contra o Oracle real: tipos, `NUMBER` de precisão alta, `CLOB`, datas com timezone, autenticação. Decide Rota A ou B. Timebox de 1 dia.
+1. ~~**Spike Oracle**~~ — feito. Rota B (crate `oracle`, ODPI-C) confirmada — ver "Camada de banco — decisão do Oracle" acima.
 2. `guard.rs` + suíte de testes de bypass
 3. Driver Postgres + execução de uma query única com parâmetros
 4. UI mínima: cadastro de connection, editor de SQL, uma grade de resultado
-5. Driver Oracle
+5. ~~Driver Oracle~~ — feito (`db/oracle.rs`, Rota B/ODPI-C).
 6. Flow: N queries, parâmetros compartilhados, execução paralela, painéis
 7. Rules: engine CEL, `scope: row` e `scope: result`, badges no painel
 8. Propagação `first` + `run_if`
@@ -338,6 +378,6 @@ Se uma tarefa parecer exigir algo desta lista, pare e pergunte antes de codar.
 10. `correlate_on`, contexto `origin` e regras de divergência entre tabelas
 11. Editor visual de regras com preview contra o último resultado
 12. Modo `fan_out`
-13. Driver MySQL
+13. ~~Driver MySQL~~ — feito (`db/mysql.rs`, `sqlx`).
 14. Export/import de rules e flows em YAML
 15. Export CSV/JSON do painel; histórico de execuções

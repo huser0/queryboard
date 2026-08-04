@@ -1,6 +1,7 @@
 //! Trait `Driver`/`Session` — o único ponto de contato entre o resto da
-//! aplicação e um banco real. Isola a decisão Rota A (crate Rust puro) vs
-//! Rota B (sidecar) descrita em CLAUDE.md §3 e docs/adr/0001-camada-oracle.md:
+//! aplicação e um banco real. Isola a decisão Rota A (crate Rust puro,
+//! descartada) vs Rota B (crate `oracle`/ODPI-C) descrita em CLAUDE.md §3,
+//! docs/adr/0001-camada-oracle.md e docs/adr/0006-camada-oracle-rota-b-odpic.md:
 //! trocar de rota deve custar um módulo novo atrás deste trait, nunca uma
 //! refatoração do resto do código.
 //!

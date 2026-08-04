@@ -16,3 +16,45 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+
+  mysql:
+    image: mysql:8.4
+    container_name: queryboard-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: queryboard
+      MYSQL_DATABASE: queryboard
+      MYSQL_USER: queryboard
+      MYSQL_PASSWORD: queryboard
+    ports:
+      - "53306:3306"
+    volumes:
+      - ./dev/seed-mysql.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "queryboard", "-pqueryboard"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Atrás de um profile: o startup do Oracle Database Free é lento (~1-2
+  # min) e, seguindo CLAUDE.md ("não adicionar dependência de Oracle no
+  # pipeline"), a validação dele é manual — não deve atrasar o
+  # `docker compose up -d --wait` padrão de quem só quer Postgres/MySQL.
+  # Suba com: docker compose --profile oracle up -d --wait
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: queryboard-oracle
+    profiles: ["oracle"]
+    environment:
+      ORACLE_PASSWORD: queryboard
+      APP_USER: queryboard
+      APP_USER_PASSWORD: queryboard
+    ports:
+      - "51521:1521"
+    volumes:
+      - ./dev/seed-oracle.sql:/container-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s

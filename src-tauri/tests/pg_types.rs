@@ -6,6 +6,7 @@
 
 #![cfg(feature = "integration")]
 
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use queryboard_lib::db::driver::{Bind, ConnectionConfig, Driver, Limits, SecretRef, Session};
@@ -21,14 +22,31 @@ use tokio_util::sync::CancellationToken;
 
 const PASSWORD: &str = "queryboard-test-password";
 
+/// Runtime único e persistente pro binário de teste inteiro — cada
+/// `#[tokio::test]` cria seu próprio runtime descartável por padrão, e o
+/// container compartilhado (`static CONTAINER` abaixo) não sobrevive à
+/// troca de runtime entre testes: `OnceCell` fica preso ao runtime que
+/// rodou o primeiro `get_or_init`, e o segundo teste (com um runtime
+/// novo) recria o container do zero — bug pré-existente confirmado
+/// rodando dois testes em sequência (`plain_int` passa, o próximo recria
+/// o container e estoura `WaitContainer(StartupTimeout)`). `#[test]`
+/// comum + `RUNTIME.block_on(...)` evita isso: um único runtime vive por
+/// todo o processo do binário de teste, igual `mysql_types.rs`.
+static RUNTIME: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().expect("runtime de teste deveria criar"));
+
 static CONTAINER: OnceCell<ContainerAsync<Postgres>> = OnceCell::const_new();
 
 async fn container() -> &'static ContainerAsync<Postgres> {
     CONTAINER
         .get_or_init(|| async {
+            // Timeout bem acima do default de 60s — confirmado rodando
+            // `podman run` puro (sem Rust envolvido) que o boot de um
+            // container de banco pode passar de 170s neste ambiente.
             Postgres::default()
                 .with_password(PASSWORD)
                 .with_tag("16-alpine")
+                .with_startup_timeout(Duration::from_secs(300))
                 .start()
                 .await
                 .expect("postgres container deveria subir")
@@ -89,9 +107,10 @@ async fn select_one_cell(session: &mut dyn Session, sql: &str) -> CellValue {
     result.rows[0][0].clone()
 }
 
-#[tokio::test]
+#[test]
 #[ignore]
-async fn numeric_with_precision_and_scale_roundtrips_exactly() {
+fn numeric_with_precision_and_scale_roundtrips_exactly() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(
         &mut *session,
@@ -102,62 +121,83 @@ async fn numeric_with_precision_and_scale_roundtrips_exactly() {
         value,
         CellValue::Decimal("12345678901234567890.1234567890".to_string())
     );
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn numeric_without_declared_precision() {
+fn numeric_without_declared_precision() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT 123.456::numeric").await;
     assert_eq!(value, CellValue::Decimal("123.456".to_string()));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn bigint_at_i64_boundary() {
+fn bigint_at_i64_boundary() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT 9223372036854775807::bigint").await;
     assert_eq!(value, CellValue::Int(i64::MAX));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn plain_int() {
+fn plain_int() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT 42::int").await;
     assert_eq!(value, CellValue::Int(42));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn float8() {
+fn float8() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT 3.5::float8").await;
     assert_eq!(value, CellValue::Float(3.5));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn large_text() {
+fn large_text() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT repeat('a', 100000)").await;
     match value {
         CellValue::Text(s) => assert_eq!(s.len(), 100_000),
         other => panic!("esperava Text, veio {other:?}"),
     }
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn bytea() {
+fn bytea() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, r"SELECT '\xDEADBEEF'::bytea").await;
     assert_eq!(value, CellValue::Bytes(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn uuid() {
+fn uuid() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(
         &mut *session,
@@ -168,21 +208,27 @@ async fn uuid() {
         value,
         CellValue::Text("550e8400-e29b-41d4-a716-446655440000".to_string())
     );
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn json_and_jsonb() {
+fn json_and_jsonb() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let json = select_one_cell(&mut *session, r#"SELECT '{"a":1}'::json"#).await;
     let jsonb = select_one_cell(&mut *session, r#"SELECT '{"a":1}'::jsonb"#).await;
     assert!(matches!(json, CellValue::Json(_)));
     assert!(matches!(jsonb, CellValue::Json(_)));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn bool_true_and_false() {
+fn bool_true_and_false() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     assert_eq!(
         select_one_cell(&mut *session, "SELECT true").await,
@@ -192,11 +238,14 @@ async fn bool_true_and_false() {
         select_one_cell(&mut *session, "SELECT false").await,
         CellValue::Bool(false)
     );
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn timestamptz_with_explicit_offset() {
+fn timestamptz_with_explicit_offset() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(
         &mut *session,
@@ -207,37 +256,49 @@ async fn timestamptz_with_explicit_offset() {
         CellValue::TimestampTz(s) => assert_eq!(s, "2026-07-31T15:00:00+00:00"),
         other => panic!("esperava TimestampTz, veio {other:?}"),
     }
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn date() {
+fn date() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT '2026-07-31'::date").await;
     assert_eq!(value, CellValue::Date("2026-07-31".to_string()));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn interval() {
+fn interval() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT interval '1 mon 2 days'").await;
     assert!(matches!(value, CellValue::Interval(_)));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn array_type_degrades_gracefully_instead_of_failing() {
+fn array_type_degrades_gracefully_instead_of_failing() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let value = select_one_cell(&mut *session, "SELECT ARRAY[1,2,3]").await;
     // Não tem CellValue dedicado para array; o importante é não falhar a
     // consulta inteira por causa de uma coluna de tipo exótico.
     assert!(matches!(value, CellValue::Text(_)));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn null_in_every_mapped_type() {
+fn null_in_every_mapped_type() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     for cast in [
         "numeric",
@@ -259,11 +320,14 @@ async fn null_in_every_mapped_type() {
         let value = select_one_cell(&mut *session, &sql).await;
         assert_eq!(value, CellValue::Null, "NULL::{cast} deveria virar Null");
     }
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn scalar_bind_by_position() {
+fn scalar_bind_by_position() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     // ::bigint (não ::int) para casar com o tipo de fio que Bind::Int(i64)
     // manda — um cast para int4 causaria "incorrect binary data format"
@@ -279,7 +343,9 @@ async fn scalar_bind_by_position() {
         .await
         .unwrap();
     assert_eq!(result.rows[0][0], CellValue::Int(42));
+    });
 }
+
 
 /// Prepara uma tabela escrachável fora do driver de leitura (o guard
 /// bloqueia DDL de propósito — CLAUDE.md §2) só para os testes abaixo
@@ -333,9 +399,10 @@ async fn setup_typed_table() {
 /// `INTEGER` fazia o Postgres decodificar os bytes UTF-8 da string como
 /// um inteiro binário de 4 bytes — lixo, não um erro. Ver
 /// `db::postgres::bind_one`/`coerce_text_to_inferred_type`.
-#[tokio::test]
+#[test]
 #[ignore]
-async fn text_bind_matches_integer_column_by_inferred_type() {
+fn text_bind_matches_integer_column_by_inferred_type() {
+    RUNTIME.block_on(async {
     setup_typed_table().await;
     let mut session = session().await;
     let validated = validate("SELECT id FROM bind_repro WHERE id = $1", Dialect::Postgres).unwrap();
@@ -353,11 +420,14 @@ async fn text_bind_matches_integer_column_by_inferred_type() {
         1,
         "Bind::Text('5002') deveria casar com a linha id=5002 (INTEGER)"
     );
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn text_bind_matches_numeric_column_by_inferred_type() {
+fn text_bind_matches_numeric_column_by_inferred_type() {
+    RUNTIME.block_on(async {
     setup_typed_table().await;
     let mut session = session().await;
     let validated =
@@ -372,11 +442,14 @@ async fn text_bind_matches_numeric_column_by_inferred_type() {
         .await
         .expect("execute_select deveria funcionar");
     assert_eq!(result.rows.len(), 1, "Bind::Text('149.90') deveria casar com price NUMERIC");
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn text_bind_matches_bool_column_by_inferred_type() {
+fn text_bind_matches_bool_column_by_inferred_type() {
+    RUNTIME.block_on(async {
     setup_typed_table().await;
     let mut session = session().await;
     let validated =
@@ -391,7 +464,9 @@ async fn text_bind_matches_bool_column_by_inferred_type() {
         .await
         .expect("execute_select deveria funcionar");
     assert_eq!(result.rows.len(), 1, "Bind::Text('true') deveria casar com active BOOLEAN");
+    });
 }
+
 
 /// Regressão específica: antes da correção cobrir DATE/TIME/TIMESTAMP*,
 /// um `Bind::Text` vazio ou preenchido contra uma coluna `DATE` não
@@ -399,9 +474,10 @@ async fn text_bind_matches_bool_column_by_inferred_type() {
 /// ("insufficient data left in message"), porque o texto era mandado com
 /// o mesmo número de bytes da string em vez dos 4 bytes binários que
 /// `DATE` espera.
-#[tokio::test]
+#[test]
 #[ignore]
-async fn text_bind_matches_date_column_by_inferred_type() {
+fn text_bind_matches_date_column_by_inferred_type() {
+    RUNTIME.block_on(async {
     setup_typed_table().await;
     let mut session = session().await;
     let validated = validate(
@@ -419,11 +495,14 @@ async fn text_bind_matches_date_column_by_inferred_type() {
         .await
         .expect("execute_select deveria funcionar");
     assert_eq!(result.rows.len(), 1, "Bind::Text('2026-07-20') deveria casar com sale_date DATE");
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn null_bind() {
+fn null_bind() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let validated = validate("SELECT $1::text IS NULL", Dialect::Postgres).unwrap();
     let result = session
@@ -436,11 +515,14 @@ async fn null_bind() {
         .await
         .unwrap();
     assert_eq!(result.rows[0][0], CellValue::Bool(true));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn max_rows_truncates_via_cursor_fetch_never_via_limit() {
+fn max_rows_truncates_via_cursor_fetch_never_via_limit() {
+    RUNTIME.block_on(async {
     let limits = Limits {
         max_rows: 5,
         ..Limits::default()
@@ -457,11 +539,14 @@ async fn max_rows_truncates_via_cursor_fetch_never_via_limit() {
         .unwrap();
     assert_eq!(result.rows.len(), 5);
     assert!(result.truncated);
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn under_max_rows_is_not_truncated() {
+fn under_max_rows_is_not_truncated() {
+    RUNTIME.block_on(async {
     let limits = Limits {
         max_rows: 1000,
         ..Limits::default()
@@ -478,11 +563,14 @@ async fn under_max_rows_is_not_truncated() {
         .unwrap();
     assert_eq!(result.rows.len(), 10);
     assert!(!result.truncated);
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn session_is_actually_read_only() {
+fn session_is_actually_read_only() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     // "SHOW transaction_read_only" não é um SELECT — o guard rejeita
     // corretamente (não é Statement::Query). current_setting() dá a
@@ -493,11 +581,14 @@ async fn session_is_actually_read_only() {
     )
     .await;
     assert_eq!(value, CellValue::Text("on".to_string()));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn cancel_before_query_starts() {
+fn cancel_before_query_starts() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let validated = validate("SELECT 1", Dialect::Postgres).unwrap();
     let cancel = CancellationToken::new();
@@ -506,11 +597,14 @@ async fn cancel_before_query_starts() {
         .execute_select(&validated, &[], &Limits::default(), cancel)
         .await;
     assert!(matches!(result, Err(DbError::Cancelled)));
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn cancel_mid_query_stops_it_on_the_server() {
+fn cancel_mid_query_stops_it_on_the_server() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let cancel = CancellationToken::new();
     let cancel_clone = cancel.clone();
@@ -537,11 +631,14 @@ async fn cancel_mid_query_stops_it_on_the_server() {
         started.elapsed() < Duration::from_secs(5),
         "cancelamento deveria interromper bem antes da query terminar sozinha"
     );
+    });
 }
 
-#[tokio::test]
+
+#[test]
 #[ignore]
-async fn syntax_error_message_never_leaks_credentials() {
+fn syntax_error_message_never_leaks_credentials() {
+    RUNTIME.block_on(async {
     let mut session = session().await;
     let validated = validate("SELECT FORM t", Dialect::Postgres);
     // "FORM" não é um SELECT válido para o parser? na verdade isso falha
@@ -563,4 +660,6 @@ async fn syntax_error_message_never_leaks_credentials() {
         assert!(!message.contains(PASSWORD));
         assert!(!message.contains("127.0.0.1"));
     }
+    });
 }
+

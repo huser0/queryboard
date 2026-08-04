@@ -15,6 +15,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::db::driver::{Driver, SecretRef};
 use crate::db::error::DbError;
+use crate::db::mysql::MySqlDriver;
+use crate::db::oracle::OracleDriver;
 use crate::db::postgres::PostgresDriver;
 use crate::model::ConnectionKind;
 use crate::secrets;
@@ -33,6 +35,14 @@ impl AppState {
         drivers.insert(
             ConnectionKind::Postgres,
             Arc::new(PostgresDriver::new(resolve_secret)),
+        );
+        drivers.insert(
+            ConnectionKind::Mysql,
+            Arc::new(MySqlDriver::new(resolve_secret)),
+        );
+        drivers.insert(
+            ConnectionKind::Oracle,
+            Arc::new(OracleDriver::new(resolve_secret)),
         );
         Self {
             pool,

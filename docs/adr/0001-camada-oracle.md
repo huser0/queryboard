@@ -1,6 +1,8 @@
 # ADR 0001: Camada de acesso ao Oracle — Rota A (Rust puro) vs Rota B (sidecar Python)
 
-- Status: aceita (com follow-up pendente)
+- Status: substituída por ADR 0006 — o descarte da Rota A (`oracledb`, exige nightly)
+  continua válido; a recomendação de Rota B = sidecar Python foi revista depois do
+  follow-up K1–K9 (pendente aqui) ter sido executado contra um Oracle real
 - Data: 2026-07-31
 
 ## Contexto

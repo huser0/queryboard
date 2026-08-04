@@ -3,5 +3,7 @@
 
 pub mod driver;
 pub mod error;
+pub mod mysql;
+pub mod oracle;
 pub mod postgres;
 pub mod value;
