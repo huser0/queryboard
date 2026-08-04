@@ -141,7 +141,8 @@ impl Session for OracleSession {
         let max_rows = limits.max_rows;
 
         let mut query_task = tokio::task::spawn_blocking(move || {
-            let boxed: Vec<Box<dyn ToSql>> = owned_binds.iter().map(OwnedBind::to_sql_box).collect();
+            let boxed: Vec<Box<dyn ToSql>> =
+                owned_binds.iter().map(OwnedBind::to_sql_box).collect();
             let refs: Vec<&dyn ToSql> = boxed.iter().map(AsRef::as_ref).collect();
 
             let result_set = conn
@@ -151,7 +152,13 @@ impl Session for OracleSession {
             let columns: Vec<ColumnMeta> = result_set
                 .column_info()
                 .iter()
-                .map(|c| ColumnMeta::new(c.name(), format!("{:?}", c.oracle_type()), Some(c.nullable())))
+                .map(|c| {
+                    ColumnMeta::new(
+                        c.name(),
+                        format!("{:?}", c.oracle_type()),
+                        Some(c.nullable()),
+                    )
+                })
                 .collect();
 
             let mut rows = Vec::new();
@@ -192,7 +199,8 @@ impl Session for OracleSession {
     async fn rollback_and_close(self: Box<Self>) -> Result<(), DbError> {
         let conn = self.conn;
         tokio::task::spawn_blocking(move || {
-            conn.rollback().map_err(|e| DbError::query_failed(e, None))?;
+            conn.rollback()
+                .map_err(|e| DbError::query_failed(e, None))?;
             conn.close().map_err(DbError::driver)?;
             Ok(())
         })
@@ -274,10 +282,20 @@ fn format_timestamp_tz(ts: &oracle::sql_type::Timestamp) -> String {
     let offset_minutes = ts.tz_hour_offset() * 60 + ts.tz_minute_offset();
     let sign = if offset_minutes < 0 { '-' } else { '+' };
     let abs = offset_minutes.abs();
-    format!("{}{}:{:02}:{:02}", format_timestamp(ts), sign, abs / 60, abs % 60)
+    format!(
+        "{}{}:{:02}:{:02}",
+        format_timestamp(ts),
+        sign,
+        abs / 60,
+        abs % 60
+    )
 }
 
-fn decode_cell(row: &oracle::Row, idx: usize, oracle_type: &OracleType) -> Result<CellValue, DbError> {
+fn decode_cell(
+    row: &oracle::Row,
+    idx: usize,
+    oracle_type: &OracleType,
+) -> Result<CellValue, DbError> {
     // `oracle::Row::get` devolve `Option<T>` implicitamente via
     // `Option<T>: FromSql` — usamos isso para NULL em vez de checar antes,
     // já que o crate não expõe um "is_null" separado por índice.

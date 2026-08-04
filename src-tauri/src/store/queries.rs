@@ -300,15 +300,13 @@ mod tests {
 
         let mut new_input = sample_input("consulta_oferta", "erp_prod");
         new_input.name = "Consulta oferta v2".to_string();
-        new_input.sql = "SELECT * FROM tb_offer WHERE offer_id = :offer_id AND ativo = true"
-            .to_string();
-        new_input.params = Some(vec![
-            QueryParam {
-                name: "offer_id".to_string(),
-                param_type: "number".to_string(),
-                required: true,
-            },
-        ]);
+        new_input.sql =
+            "SELECT * FROM tb_offer WHERE offer_id = :offer_id AND ativo = true".to_string();
+        new_input.params = Some(vec![QueryParam {
+            name: "offer_id".to_string(),
+            param_type: "number".to_string(),
+            required: true,
+        }]);
 
         let updated = update(&pool, "consulta_oferta", &new_input).await.unwrap();
 
@@ -320,7 +318,11 @@ mod tests {
         assert_ne!(updated.updated_at, created.updated_at);
 
         let listed = list(&pool).await.unwrap();
-        assert_eq!(listed.len(), 1, "update não deveria criar uma segunda linha");
+        assert_eq!(
+            listed.len(),
+            1,
+            "update não deveria criar uma segunda linha"
+        );
     }
 
     #[tokio::test]

@@ -329,7 +329,16 @@ async fn execute_read_only(
         .register_running(execution_id.clone(), cancel.clone())
         .await;
 
-    let result = run_read_only(driver, &cfg, &secret, &limits, validated, bind_values, cancel).await;
+    let result = run_read_only(
+        driver,
+        &cfg,
+        &secret,
+        &limits,
+        validated,
+        bind_values,
+        cancel,
+    )
+    .await;
 
     state.unregister_running(&execution_id).await;
     result.map_err(|e| e.to_string())

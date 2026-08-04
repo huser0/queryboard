@@ -251,7 +251,9 @@ fn bind_all<'q>(
     };
 
     for (idx, bind) in binds.iter().enumerate() {
-        let inferred_type_name = param_types.and_then(|types| types.get(idx)).map(TypeInfo::name);
+        let inferred_type_name = param_types
+            .and_then(|types| types.get(idx))
+            .map(TypeInfo::name);
         query = bind_one(query, bind, inferred_type_name)?;
     }
     Ok(query)
@@ -291,7 +293,10 @@ fn parse_naive_datetime(raw: &str) -> Result<chrono::NaiveDateTime, DbError> {
         })
 }
 
-fn coerce_text_to_inferred_type(raw: &str, type_name: &str) -> Result<Option<CoercedText>, DbError> {
+fn coerce_text_to_inferred_type(
+    raw: &str,
+    type_name: &str,
+) -> Result<Option<CoercedText>, DbError> {
     let invalid =
         |expected: &str| DbError::driver(format!("valor '{raw}' não é um {expected} válido"));
     let coerced = match type_name {
