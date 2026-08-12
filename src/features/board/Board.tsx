@@ -293,15 +293,17 @@ export function Board({
       />
 
       <div className="board-adhoc-zone">
-        <AdhocTabs
-          slots={adhocSlots}
-          activeId={activeAdhocId}
-          executions={executions}
-          onSelect={setActiveAdhocId}
-          onClose={closeAdhocTab}
-          onReorder={reorderAdhocSlots}
-          onAddNew={addAdhocTab}
-        />
+        {adhocSlots.length > 0 && (
+          <AdhocTabs
+            slots={adhocSlots}
+            activeId={activeAdhocId}
+            executions={executions}
+            onSelect={setActiveAdhocId}
+            onClose={closeAdhocTab}
+            onReorder={reorderAdhocSlots}
+            onAddNew={addAdhocTab}
+          />
+        )}
         {activeAdhocSlot !== undefined ? (
           <AdhocQueryBlock
             key={activeAdhocSlot.id}
@@ -315,7 +317,12 @@ export function Board({
             onCancel={() => { handleCancelOne(activeAdhocSlot.id); }}
           />
         ) : (
-          <p className="empty-state">Nenhuma consulta ad-hoc aberta — clique em "+" para começar.</p>
+          <div className="empty-state empty-state--action">
+            <p>Nenhuma consulta ad-hoc aberta.</p>
+            <button type="button" data-variant="primary" onClick={addAdhocTab}>
+              + Adicionar SQL ad-hoc
+            </button>
+          </div>
         )}
       </div>
 

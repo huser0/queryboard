@@ -453,6 +453,21 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="tru
   text-align: center;
 }
 
+/* Estado vazio com call-to-action embutido — antes era só texto dizendo
+   "clique em +", com o "+" de verdade solto na barra de abas acima, sem
+   nenhuma affordance de botão. Move a ação pra dentro do próprio estado
+   vazio, como botão de verdade. */
+.empty-state--action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.empty-state--action p {
+  margin: 0;
+}
+
 [role="status"] {
   color: #1a7f37;
   font-size: 0.85rem;
