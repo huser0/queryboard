@@ -1,5 +1,26 @@
 import { useState } from "react";
+import type { RunStatus } from "../queries/RunBar";
 import type { AdhocSlot, QueryExecutionState } from "./types";
+
+// Símbolos distintos por status, não só cor — daltônicos não conseguem
+// diferenciar o "erro" do "ok" só pela tonalidade do pontinho. O texto
+// (visually-hidden) cobre quem usa leitor de tela; o glifo cobre quem
+// enxerga a tela mas não a cor.
+const STATUS_GLYPH: Record<RunStatus, string> = {
+  idle: "○",
+  running: "◐",
+  ok: "●",
+  error: "✕",
+  cancelled: "–",
+};
+
+const STATUS_LABEL: Record<RunStatus, string> = {
+  idle: "pronto",
+  running: "executando",
+  ok: "concluído",
+  error: "erro",
+  cancelled: "cancelado",
+};
 
 interface AdhocTabsProps {
   slots: AdhocSlot[];
@@ -62,7 +83,10 @@ export function AdhocTabs({
               className="adhoc-tabs__select"
               onClick={() => { onSelect(slot.id); }}
             >
-              <span className="status-dot" data-status={status} aria-hidden="true" />
+              <span className="status-dot" data-status={status} aria-hidden="true">
+                {STATUS_GLYPH[status]}
+              </span>
+              <span className="visually-hidden">{STATUS_LABEL[status]} — </span>
               {title}
               {slot.savedAsSlug !== null && <span className="adhoc-tabs__saved-badge">salvo</span>}
             </button>

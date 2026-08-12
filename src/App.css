@@ -21,7 +21,9 @@
   --color-danger: #c62828;
   --color-danger-bg: #fdecea;
   --color-success: #1a7f37;
-  --color-success-bg: #e6f4ea;
+  /* Levemente mais claro que um verde-tint "natural" (#e6f4ea) — esse dava
+     4.47:1 contra o texto verde, abaixo do mínimo AA de 4.5:1. */
+  --color-success-bg: #eef8f1;
   --color-warning: #9a6700;
   --color-warning-bg: #fff6e0;
   --color-muted-bg: #eceef1;
@@ -197,9 +199,13 @@ button:active {
   background-color: #e8e8e8;
 }
 
+/* Cor explícita em vez de `opacity` — opacidade borra o texto contra o
+   fundo por trás do botão, o que em telas variam ficava abaixo de 4.5:1
+   AA. #666 sobre #f0f0f0 dá ~5:1, garantido independente do que está
+   atrás. */
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  color: #666666;
   border-color: #d8d8d8;
   background-color: #f0f0f0;
 }
@@ -547,9 +553,15 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="tru
   background-color: var(--color-muted-bg);
 }
 
+/* Fundo próprio (par testado contra AA), não o muted-bg herdado do
+   `.run-summary` — vermelho sobre muted-bg não tem contraste garantido
+   (falhava no modo escuro: ~3.4:1). */
 .run-summary__error {
   color: var(--color-danger);
+  background-color: var(--color-danger-bg);
   font-weight: 600;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
 }
 
 .params-panel,
@@ -714,24 +726,44 @@ section > button {
   color: var(--color-muted-text);
 }
 
+/* Glifo (○/◐/●/✕/–), não mais um pontinho colorido sem forma — a cor
+   sozinha não distingue "erro" de "ok" pra quem tem daltonismo. */
 .status-dot {
   flex-shrink: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--color-muted-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9em;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--color-muted-text);
 }
 
 .status-dot[data-status="running"] {
-  background-color: var(--color-warning);
+  color: var(--color-warning);
 }
 
 .status-dot[data-status="ok"] {
-  background-color: var(--color-success);
+  color: var(--color-success);
 }
 
 .status-dot[data-status="error"] {
-  background-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* Conteúdo só pra leitor de tela — visível na árvore de acessibilidade,
+   removido do layout visual sem usar `display:none` (que também some
+   da árvore). Padrão usual pra texto que complementa um ícone/cor. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .board-panel__save-row {
@@ -929,9 +961,12 @@ button.action-subtle:disabled {
     --color-danger: #f85149;
     --color-success: #3fb950;
     --color-warning: #d29922;
-    --color-danger-bg: #4a2323;
+    /* Fundos mais escuros que a primeira tentativa (#4a2323/#4a3c14) —
+       aquelas davam 4.03:1/4.27:1 contra o texto de acento, abaixo do
+       mínimo AA de 4.5:1. */
+    --color-danger-bg: #341818;
     --color-success-bg: #1f3a28;
-    --color-warning-bg: #4a3c14;
+    --color-warning-bg: #403510;
     --color-muted-bg: #3a3a3a;
     --color-muted-text: #b8b8b8;
     --color-primary-bg: #1f2a4d;
@@ -986,6 +1021,7 @@ button.action-subtle:disabled {
   }
 
   button:disabled {
+    color: var(--color-muted-text);
     background-color: #1a1a1a;
     border-color: #3d3d3d;
   }
