@@ -33,7 +33,12 @@ Passo a passo para levantar bancos de teste (Postgres, MySQL e, opcionalmente, O
     sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
       libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
     ```
-- **No WSL2:** o app abre uma janela nativa via WSLg. Se `pnpm tauri dev` falhar com `Failed to initialize GTK backend`, o terminal está sem as variáveis do WSLg — abra um terminal novo (ou rode `source ~/.bashrc`) para pegar as exportações de `DISPLAY`/`WAYLAND_DISPLAY`/`XDG_RUNTIME_DIR` já configuradas no `.bashrc`.
+- **No WSL2:** o app abre uma janela nativa via WSLg. Se `pnpm tauri dev` falhar com `Failed to initialize GTK backend` mesmo com `DISPLAY`/`WAYLAND_DISPLAY`/`XDG_RUNTIME_DIR` exportados pelo `.bashrc`, o problema pode ser mais fundo do que "terminal sem as variáveis": em distros WSL não-padrão (instaladas manualmente, não a `Ubuntu` default), o systemd de usuário costuma já ter fixado `XDG_RUNTIME_DIR=/run/user/<uid>` **antes** do `.bashrc` rodar — como o `.bashrc` só define a variável se ela estiver vazia (`${XDG_RUNTIME_DIR:-...}`), o valor do WSLg nunca entra em vigor, e o socket Wayland real (`wayland-0`) fica em `/mnt/wslg/runtime-dir`, não em `/run/user/<uid>`. Pior: o socket X11 do WSLg mora em `/mnt/wslg/.X11-unix/X0`, e nada faz o bind/symlink dele para `/tmp/.X11-unix/` (onde clientes X11 procuram por padrão) — então mesmo `DISPLAY=:0` "correto" não acha o servidor. Diagnóstico rápido: `ls /tmp/.X11-unix/` vazio e `ls /mnt/wslg/.X11-unix/` com `X0` confirma o problema. Correção (aditiva, não mexe no que já existia):
+  ```bash
+  sudo ln -sf /mnt/wslg/.X11-unix/X0 /tmp/.X11-unix/X0
+  XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 pnpm tauri dev
+  ```
+  O symlink não sobrevive a um reboot do WSL (`/tmp` é tmpfs) — recrie-o se o erro voltar depois de reiniciar a máquina.
 - **Em uma `podman machine` (VM headless via `podman machine ssh`):** o mesmo erro `Failed to initialize GTK backend` acontece porque a VM não herda `DISPLAY`/`WAYLAND_DISPLAY`/`XDG_RUNTIME_DIR` do host — dentro dela essas variáveis vêm vazias (ou `XDG_RUNTIME_DIR` aponta pra `/run/user/0`, se você estiver como root). É preciso fazer X11 forwarding via SSH manualmente (Wayland não é network-transparent, então X11 é o caminho viável aqui — GTK cai pra XWayland sem problema mesmo com um desktop Wayland no host):
   ```bash
   # dentro da VM: garantir xauth instalado e X11Forwarding habilitado no sshd
