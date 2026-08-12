@@ -4,6 +4,7 @@
 //! passaram pelo sanitizador de `db::error`).
 
 pub mod connections;
+pub mod files;
 pub mod query;
 
 use std::collections::HashMap;

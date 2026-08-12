@@ -8,6 +8,7 @@
 // deve crescer dentro deste componente.
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { open as openSqlFileDialog } from "@tauri-apps/plugin-dialog";
 import { client, type ResultSet } from "../../ipc/client";
 import type { ConnectionSummary, QuerySummary } from "../../ipc/types";
 import { ParamsPanel } from "../queries/ParamsPanel";
@@ -70,6 +71,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
   const [activeAdhocId, setActiveAdhocId] = useState<string | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [executions, setExecutions] = useState<Record<string, QueryExecutionState>>({});
+  const [fileOpenError, setFileOpenError] = useState<string | null>(null);
 
   const selectedQueries = queries.filter((q) => selectedSlugs.includes(q.slug));
   const activeAdhocSlot = adhocSlots.find((s) => s.id === activeAdhocId);
@@ -212,13 +214,47 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
     setActiveAdhocId(id);
   }
 
-  // Usado só pelo SchemaExplorer (ver `insertSchemaText` abaixo): clicar
-  // num nome de tabela/coluna sem nenhum bloco ad-hoc aberto precisa
-  // abrir um, já com o texto — em vez de simplesmente não fazer nada.
+  // Usado pelo SchemaExplorer (ver `insertSchemaText` abaixo) e por
+  // `handleOpenSqlFile`: clicar num nome de tabela/coluna sem nenhum
+  // bloco ad-hoc aberto, ou abrir um arquivo .sql do disco, precisa
+  // abrir um bloco novo já com o texto — em vez de simplesmente não
+  // fazer nada.
   function addAdhocTabWithSql(initialSql: string) {
     const id = crypto.randomUUID();
     setAdhocSlots((prev) => [...prev, newAdhocSlot(id, activeConnectionSlug, initialSql)]);
     setActiveAdhocId(id);
+  }
+
+  // Abre um .sql existente do disco como nova aba ad-hoc — sempre nova
+  // (nunca sobrescreve a aba ativa), mesma semântica de "abrir um
+  // documento" de qualquer editor. Cancelar o diálogo nativo é um
+  // no-op silencioso (não é erro); falhas de leitura (arquivo apagado
+  // entre o pick e a leitura, sem permissão, maior que o limite)
+  // aparecem como texto ao lado dos botões de abrir.
+  async function handleOpenSqlFile() {
+    setFileOpenError(null);
+    let path: string | null;
+    try {
+      path = await openSqlFileDialog({
+        multiple: false,
+        directory: false,
+        filters: [
+          { name: "SQL", extensions: ["sql"] },
+          { name: "Todos os arquivos", extensions: ["*"] },
+        ],
+      });
+    } catch (err) {
+      setFileOpenError(String(err));
+      return;
+    }
+    if (path === null) {
+      return;
+    }
+    try {
+      addAdhocTabWithSql(await client.sqlFileRead(path));
+    } catch (err) {
+      setFileOpenError(String(err));
+    }
   }
 
   useImperativeHandle(
@@ -322,6 +358,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
       />
 
       <div className="board-adhoc-zone">
+        {fileOpenError !== null && <span role="alert">{fileOpenError}</span>}
         {adhocSlots.length > 0 && (
           <AdhocTabs
             slots={adhocSlots}
@@ -331,6 +368,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
             onClose={closeAdhocTab}
             onReorder={reorderAdhocSlots}
             onAddNew={addAdhocTab}
+            onOpenFile={() => void handleOpenSqlFile()}
           />
         )}
         {activeAdhocSlot !== undefined ? (
@@ -351,6 +389,9 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
             <p>Nenhuma consulta ad-hoc aberta.</p>
             <button type="button" data-variant="primary" onClick={addAdhocTab}>
               + Adicionar SQL ad-hoc
+            </button>
+            <button type="button" onClick={() => void handleOpenSqlFile()}>
+              Abrir arquivo .sql
             </button>
           </div>
         )}

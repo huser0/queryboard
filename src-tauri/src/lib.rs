@@ -27,6 +27,7 @@ pub fn run() {
     let state = ipc::AppState::new(pool);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             ipc::connections::connection_list,
@@ -43,6 +44,7 @@ pub fn run() {
             ipc::query::query_run_adhoc,
             ipc::query::connection_schema,
             ipc::query_cancel,
+            ipc::files::sql_file_read,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

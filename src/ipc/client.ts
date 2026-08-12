@@ -100,6 +100,8 @@ export const client = {
 
   connectionSchema: (connectionSlug: string): Promise<TableInfo[]> =>
     invoke("connection_schema", { connectionSlug }),
+
+  sqlFileRead: (path: string): Promise<string> => invoke("sql_file_read", { path }),
 };
 
 export type QueryboardClient = typeof client;

@@ -34,6 +34,7 @@ describe("AdhocTabs", () => {
         onClose={() => { /* noop */ }}
         onReorder={() => { /* noop */ }}
         onAddNew={() => { /* noop */ }}
+        onOpenFile={() => { /* noop */ }}
       />,
     );
 
@@ -56,6 +57,7 @@ describe("AdhocTabs", () => {
         onClose={() => { /* noop */ }}
         onReorder={() => { /* noop */ }}
         onAddNew={() => { /* noop */ }}
+        onOpenFile={() => { /* noop */ }}
       />,
     );
 
@@ -76,6 +78,7 @@ describe("AdhocTabs", () => {
         onClose={onClose}
         onReorder={() => { /* noop */ }}
         onAddNew={() => { /* noop */ }}
+        onOpenFile={() => { /* noop */ }}
       />,
     );
 
@@ -97,6 +100,7 @@ describe("AdhocTabs", () => {
         onClose={() => { /* noop */ }}
         onReorder={() => { /* noop */ }}
         onAddNew={onAddNew}
+        onOpenFile={() => { /* noop */ }}
       />,
     );
 
@@ -118,6 +122,7 @@ describe("AdhocTabs", () => {
         onClose={() => { /* noop */ }}
         onReorder={() => { /* noop */ }}
         onAddNew={() => { /* noop */ }}
+        onOpenFile={() => { /* noop */ }}
       />,
     );
 

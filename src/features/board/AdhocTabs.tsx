@@ -30,6 +30,7 @@ interface AdhocTabsProps {
   onClose: (id: string) => void;
   onReorder: (draggedId: string, targetId: string) => void;
   onAddNew: () => void;
+  onOpenFile: () => void;
 }
 
 function titleFor(slot: AdhocSlot): string {
@@ -52,6 +53,7 @@ export function AdhocTabs({
   onClose,
   onReorder,
   onAddNew,
+  onOpenFile,
 }: AdhocTabsProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -109,6 +111,9 @@ export function AdhocTabs({
         onClick={onAddNew}
       >
         +
+      </button>
+      <button type="button" className="adhoc-tabs__open-file" onClick={onOpenFile}>
+        Abrir arquivo
       </button>
     </div>
   );

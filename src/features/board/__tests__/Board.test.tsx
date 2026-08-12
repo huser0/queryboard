@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, type ComponentProps } from "re
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { open as openSqlFileDialog } from "@tauri-apps/plugin-dialog";
 import { Board, type BoardHandle } from "../Board";
 import { client } from "../../../ipc/client";
 import type { ConnectionSummary, QuerySummary } from "../../../ipc/types";
@@ -15,7 +16,12 @@ vi.mock("../../../ipc/client", () => ({
     queryUpdate: vi.fn(),
     queryDelete: vi.fn(),
     queryCancel: vi.fn(),
+    sqlFileRead: vi.fn(),
   },
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn(),
 }));
 
 // CodeMirror não digita de forma confiável no jsdom (getClientRects
@@ -460,6 +466,94 @@ describe("Board", () => {
       expect(screen.getByLabelText("Editor de SQL")).toHaveValue("select * from offers");
       // Só o bloco ativo ganhou o texto — nenhum segundo bloco foi criado.
       expect(screen.getAllByLabelText("Editor de SQL")).toHaveLength(1);
+    });
+  });
+
+  describe("abrir arquivo .sql do disco", () => {
+    it("opens a new ad-hoc block filled with the file's contents, from the empty state button", async () => {
+      const user = userEvent.setup();
+      vi.mocked(openSqlFileDialog).mockResolvedValue("/home/user/query.sql");
+      vi.mocked(client.sqlFileRead).mockResolvedValue("select * from offers");
+      render(
+        <Board
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: /abrir arquivo \.sql/i }));
+
+      expect(client.sqlFileRead).toHaveBeenCalledWith("/home/user/query.sql");
+      expect(await screen.findByLabelText("Editor de SQL")).toHaveValue("select * from offers");
+    });
+
+    it("opens a second tab from the AdhocTabs toolbar button, without touching the first tab's count", async () => {
+      const user = userEvent.setup();
+      vi.mocked(openSqlFileDialog).mockResolvedValue("/home/user/query.sql");
+      vi.mocked(client.sqlFileRead).mockResolvedValue("select 1");
+      render(
+        <Board
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
+      expect(screen.getAllByRole("tab")).toHaveLength(1);
+
+      await user.click(screen.getByRole("button", { name: /^abrir arquivo$/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByRole("tab")).toHaveLength(2);
+      });
+    });
+
+    it("does nothing when the file dialog is cancelled", async () => {
+      const user = userEvent.setup();
+      vi.mocked(openSqlFileDialog).mockResolvedValue(null);
+      render(
+        <Board
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: /abrir arquivo \.sql/i }));
+
+      expect(client.sqlFileRead).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Editor de SQL")).not.toBeInTheDocument();
+    });
+
+    it("shows an inline error and opens no tab when reading the file fails", async () => {
+      const user = userEvent.setup();
+      vi.mocked(openSqlFileDialog).mockResolvedValue("/home/user/query.sql");
+      vi.mocked(client.sqlFileRead).mockRejectedValue(
+        new Error("arquivo excede o limite de 5242880 bytes"),
+      );
+      render(
+        <Board
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: /abrir arquivo \.sql/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/excede o limite/i);
+      expect(screen.queryByLabelText("Editor de SQL")).not.toBeInTheDocument();
     });
   });
 });
