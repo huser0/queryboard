@@ -26,8 +26,14 @@
   --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.05), 0 1px 1px rgba(15, 15, 15, 0.03);
 }
 
+/* max-width em vez de esticar até a borda — numa tela ultrawide (2500px+)
+   o conteúdo não ganha nada em ficar tão largo, só piora a leitura de
+   texto e força elementos a esticarem muito além do que o dado precisa.
+   1400px é confortável pra sidebar (300px) + painel com cards de
+   resultado (até 900px cada, ver .board-panel) lado a lado. */
 .container {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 1400px;
   padding: 1.25rem clamp(1.5rem, 3vw, 3rem) 3rem;
   display: flex;
   flex-direction: column;
