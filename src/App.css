@@ -790,6 +790,15 @@ section > button {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* Marcador de nulo — antes uma célula NULL e uma célula com string vazia
+   eram visualmente idênticas (ambas em branco), impossível distinguir
+   "sem valor" de "valor vazio". Usa --color-muted-text (não um cinza mais
+   claro só pra este caso) pra manter contraste AA — já é o tom usado pra
+   texto secundário em todo o resto da UI. */
+.cell-null {
+  color: var(--color-muted-text);
+}
+
 /* Coluna única, não grid de duas colunas — a largura de um resultado é
    imprevisível (uma query pode ter 3 colunas, outra 15) e a contagem de
    linhas também; lado a lado, isso deixava um vazio de ~200px sempre que

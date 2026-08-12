@@ -200,7 +200,7 @@ describe("AdhocQueryBlock", () => {
     // A grade e a barra de execução aparecem dentro do mesmo <section>
     // do editor — não num card separado em outro lugar da página.
     expect(screen.getByRole("region", { name: "Bloco de SQL ad-hoc" })).toBeInTheDocument();
-    expect(screen.getByText("5002")).toBeInTheDocument();
+    expect(screen.getByText("5.002")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^executar$/i }));
     expect(onRun).toHaveBeenCalled();

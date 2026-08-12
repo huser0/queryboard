@@ -17,14 +17,15 @@ function makeResult(overrides: Partial<ResultSet> = {}): ResultSet {
 }
 
 describe("ResultGrid", () => {
-  it("renders decimal cells as the raw string, never through Number()", () => {
+  it("renders decimal cells fully, never through Number() (formatted for pt-BR, no digit lost)", () => {
     const result = makeResult({
       rows: [
         [
           { type: "Int", value: 1 },
           // 30 dígitos — se isso passasse por Number(), viraria notação
-          // científica e perderia precisão. O teste verifica que a
-          // string exata aparece na tela.
+          // científica e perderia precisão. Formatação (separador de
+          // milhar, vírgula decimal) é por manipulação de string, então
+          // todo dígito continua presente na tela, só reagrupado.
           { type: "Decimal", value: "123456789012345678901234567890.5" },
         ],
       ],
@@ -32,7 +33,9 @@ describe("ResultGrid", () => {
 
     render(<ResultGrid result={result} />);
 
-    expect(screen.getByText("123456789012345678901234567890.5")).toBeInTheDocument();
+    expect(
+      screen.getByText("123.456.789.012.345.678.901.234.567.890,5"),
+    ).toBeInTheDocument();
   });
 
   it("renders column headers in lowercase", () => {
@@ -47,7 +50,7 @@ describe("ResultGrid", () => {
     expect(screen.queryByText("OFFER_ID")).not.toBeInTheDocument();
   });
 
-  it("renders null cells as empty, not the string 'null'", () => {
+  it("renders null cells with a distinct marker, not empty and not the string 'null'", () => {
     const result = makeResult({
       rows: [[{ type: "Int", value: 1 }, { type: "Null" }]],
     });
@@ -55,6 +58,7 @@ describe("ResultGrid", () => {
     render(<ResultGrid result={result} />);
 
     expect(screen.queryByText("null")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("valor nulo")).toHaveTextContent("—");
   });
 
   it("shows a message instead of an empty table when there are no rows", () => {

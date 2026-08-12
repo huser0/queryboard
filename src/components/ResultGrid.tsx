@@ -7,26 +7,9 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CellValue, ResultSet } from "../ipc/client";
+import { formatCell, isNumericLike } from "./cellFormat";
 
 const columnHelper = createColumnHelper<CellValue[]>();
-
-function renderCell(cell: CellValue): string {
-  if (cell.type === "Null") {
-    return "";
-  }
-  if (cell.type === "Bool") {
-    return cell.value ? "true" : "false";
-  }
-  if (cell.type === "Bytes") {
-    return `<${cell.value.length.toString()} bytes>`;
-  }
-  return String(cell.value);
-}
-
-// Decimal nunca deve virar Number() — CLAUDE.md D6, string canônica.
-function isNumericLike(cell: CellValue): boolean {
-  return cell.type === "Int" || cell.type === "Decimal" || cell.type === "Float";
-}
 
 interface ResultGridProps {
   result: ResultSet;
@@ -107,14 +90,22 @@ export function ResultGrid({ result }: ResultGridProps) {
             >
               {row.getVisibleCells().map((cell) => {
                 const value = cell.getValue<CellValue>();
+                const formatted = formatCell(value);
                 return (
                   <div
                     key={cell.id}
                     className="result-grid__cell"
                     role="cell"
                     data-numeric={isNumericLike(value) ? "true" : undefined}
+                    title={formatted.raw.length > 0 ? formatted.raw : undefined}
                   >
-                    {renderCell(value)}
+                    {formatted.isNull ? (
+                      <span className="cell-null" aria-label="valor nulo">
+                        {formatted.text}
+                      </span>
+                    ) : (
+                      formatted.text
+                    )}
                   </div>
                 );
               })}
