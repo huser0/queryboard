@@ -527,6 +527,11 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="tru
   background-color: var(--color-muted-bg);
 }
 
+.run-summary__error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 .params-panel,
 .query-selector {
   margin-top: 1.25rem;

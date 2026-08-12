@@ -1,3 +1,5 @@
+import { pluralize } from "../../components/pluralize";
+
 export type RunStatus = "idle" | "running" | "ok" | "cancelled" | "error";
 
 interface RunBarProps {
@@ -41,7 +43,7 @@ export function RunBar({
       {rowCount !== null && elapsedMs !== null && (
         <span className="result-meta" data-status={status}>
           <span aria-hidden="true">{status === "error" ? "✕" : "✓"}</span>
-          {rowCount} linha(s) · {elapsedMs}ms
+          {rowCount} {pluralize(rowCount, "linha", "linhas")} · {elapsedMs}ms
         </span>
       )}
       {truncated && (
