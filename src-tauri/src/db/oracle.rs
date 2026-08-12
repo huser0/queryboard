@@ -33,6 +33,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use oracle::sql_type::{OracleType, ToSql};
 use oracle::{Connection, Connector};
+use regex::Regex;
 use tokio_util::sync::CancellationToken;
 
 use crate::db::driver::{Bind, ConnectionConfig, Driver, Limits, SecretRef, Session};
@@ -99,12 +100,28 @@ impl Driver for OracleDriver {
 
         Ok(Box::new(OracleSession {
             conn: Arc::new(conn),
+            username: cfg.username.clone(),
         }))
+    }
+}
+
+/// Além do `sanitize()` genérico de `db/error.rs` (que só reconhece
+/// formato DSN), o Oracle tem um jeito próprio de vazar o username: um
+/// `ORA-00942` (objeto não encontrado) cita o schema atual entre aspas —
+/// `"USUARIO"."TABELA"` — que é o mesmo valor do username da connection,
+/// já que o schema padrão de um usuário Oracle é ele mesmo. Redige esse
+/// token à parte, específico deste driver.
+fn redact_username(err: impl std::fmt::Display, username: &str) -> String {
+    let raw = err.to_string();
+    match Regex::new(&format!(r"(?i)\b{}\b", regex::escape(username))) {
+        Ok(re) => re.replace_all(&raw, "***").into_owned(),
+        Err(_) => raw,
     }
 }
 
 pub struct OracleSession {
     conn: Arc<Connection>,
+    username: String,
 }
 
 #[async_trait]
@@ -112,15 +129,16 @@ impl Session for OracleSession {
     async fn begin_read_only(&mut self, limits: &Limits) -> Result<(), DbError> {
         let conn = Arc::clone(&self.conn);
         let timeout = limits.timeout;
+        let username = self.username.clone();
         tokio::task::spawn_blocking(move || {
             conn.set_call_timeout(Some(timeout))
-                .map_err(|e| DbError::query_failed(e, None))?;
+                .map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
             // Tem que ser a primeira instrução da transação (CLAUDE.md §2).
             // `autocommit` é `false` por padrão no crate `oracle`, então
             // nenhuma escrita anterior poderia ter aberto a transação sem
             // que este seja o primeiro statement de verdade.
             conn.execute("SET TRANSACTION READ ONLY", &[])
-                .map_err(|e| DbError::query_failed(e, None))?;
+                .map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
             Ok(())
         })
         .await
@@ -139,6 +157,7 @@ impl Session for OracleSession {
         let sql_text = sql.as_str().to_string();
         let owned_binds: Vec<OwnedBind> = binds.iter().map(OwnedBind::from).collect();
         let max_rows = limits.max_rows;
+        let username = self.username.clone();
 
         let mut query_task = tokio::task::spawn_blocking(move || {
             let boxed: Vec<Box<dyn ToSql>> =
@@ -147,7 +166,7 @@ impl Session for OracleSession {
 
             let result_set = conn
                 .query(&sql_text, &refs)
-                .map_err(|e| DbError::query_failed(e, None))?;
+                .map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
 
             let columns: Vec<ColumnMeta> = result_set
                 .column_info()
@@ -164,7 +183,7 @@ impl Session for OracleSession {
             let mut rows = Vec::new();
             let mut truncated = false;
             for row in result_set {
-                let row = row.map_err(|e| DbError::query_failed(e, None))?;
+                let row = row.map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
                 if rows.len() >= max_rows {
                     truncated = true;
                     break;
@@ -198,9 +217,10 @@ impl Session for OracleSession {
 
     async fn rollback_and_close(self: Box<Self>) -> Result<(), DbError> {
         let conn = self.conn;
+        let username = self.username;
         tokio::task::spawn_blocking(move || {
             conn.rollback()
-                .map_err(|e| DbError::query_failed(e, None))?;
+                .map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
             conn.close().map_err(DbError::driver)?;
             Ok(())
         })
@@ -378,4 +398,28 @@ fn decode_cell(
     };
 
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacts_username_from_ora_00942_style_message() {
+        let raw = r#"ORA-00942: table or view "QUERYBOARD"."TABELA_QUE_NAO_EXISTE" does not exist"#;
+        let clean = redact_username(raw, "queryboard");
+        assert!(!clean.to_lowercase().contains("queryboard"));
+        assert!(clean.contains("ORA-00942"));
+        assert!(clean.contains("TABELA_QUE_NAO_EXISTE"));
+    }
+
+    #[test]
+    fn redact_username_is_case_insensitive_and_whole_word() {
+        // não deve mutilar "queryboardapp" (palavra diferente) nem deixar
+        // passar a variante em maiúsculas que o Oracle usa em identificadores
+        let raw = "erro em QUERYBOARD.TAB e também em queryboardapp.TAB";
+        let clean = redact_username(raw, "queryboard");
+        assert!(!clean.contains("QUERYBOARD.TAB"));
+        assert!(clean.contains("queryboardapp"));
+    }
 }
