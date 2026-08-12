@@ -75,6 +75,35 @@ pub struct NewConnection {
     pub timeout_ms: Option<i32>,
 }
 
+/// O que o front envia para editar uma connection existente. O `slug` não
+/// entra aqui — vai como argumento separado do comando IPC (mesmo padrão
+/// de `NewQuery`/`query_update`), e não é editável: renomear o slug
+/// quebraria as foreign keys de `query.connection_slug`.
+///
+/// `password` é opcional: `None` mantém a senha já gravada no keyring;
+/// só um `Some` sobrescreve. É o campo que diferencia este tipo de
+/// `NewConnection` — na criação a senha é sempre obrigatória, na edição
+/// a UI não tem como pré-preencher um valor que nunca volta pelo IPC
+/// (CLAUDE.md §7), então "deixar em branco" precisa ser um estado
+/// representável, não uma string vazia.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ConnectionUpdate {
+    pub name: String,
+    pub kind: ConnectionKind,
+    pub host: String,
+    pub port: u16,
+    pub database: Option<String>,
+    pub service_name: Option<String>,
+    pub username: String,
+    #[ts(optional)]
+    pub password: Option<String>,
+    #[ts(optional)]
+    pub max_rows: Option<i32>,
+    #[ts(optional)]
+    pub timeout_ms: Option<i32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct QueryParam {

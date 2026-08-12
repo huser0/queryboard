@@ -7,6 +7,7 @@ interface ConnectionListProps {
   onSelect: (slug: string) => void;
   onTest: (slug: string) => Promise<void>;
   onDelete: (slug: string) => Promise<void>;
+  onEdit: (connection: ConnectionSummary) => void;
 }
 
 type TestState = { status: "idle" } | { status: "ok" } | { status: "error"; message: string };
@@ -17,6 +18,7 @@ export function ConnectionList({
   onSelect,
   onTest,
   onDelete,
+  onEdit,
 }: ConnectionListProps) {
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
@@ -64,6 +66,9 @@ export function ConnectionList({
             </button>
             <button type="button" onClick={() => void handleTest(conn.slug)}>
               Testar
+            </button>
+            <button type="button" onClick={() => { onEdit(conn); }}>
+              Editar
             </button>
             <button type="button" data-variant="danger" onClick={() => void handleDelete(conn.slug)}>
               Remover

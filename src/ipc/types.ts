@@ -8,6 +8,7 @@
 export type { ConnectionKind } from "./generated/ConnectionKind";
 export type { ConnectionSummary } from "./generated/ConnectionSummary";
 export type { NewConnection } from "./generated/NewConnection";
+export type { ConnectionUpdate } from "./generated/ConnectionUpdate";
 export type { QueryParam } from "./generated/QueryParam";
 export type { QuerySummary } from "./generated/QuerySummary";
 export type { NewQuery } from "./generated/NewQuery";

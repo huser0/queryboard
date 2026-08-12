@@ -9,6 +9,7 @@ vi.mock("./ipc/client", () => ({
   client: {
     connectionList: vi.fn().mockResolvedValue([]),
     connectionCreate: vi.fn(),
+    connectionUpdate: vi.fn(),
     connectionDelete: vi.fn(),
     connectionTest: vi.fn(),
     queryList: vi.fn().mockResolvedValue([]),

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ConnectionSummary,
+  ConnectionUpdate,
   NewConnection,
   NewQuery,
   QuerySummary,
@@ -56,6 +57,9 @@ export const client = {
 
   connectionCreate: (input: NewConnection): Promise<ConnectionSummary> =>
     invoke("connection_create", { input }),
+
+  connectionUpdate: (slug: string, input: ConnectionUpdate): Promise<ConnectionSummary> =>
+    invoke("connection_update", { slug, input }),
 
   connectionDelete: (slug: string): Promise<void> =>
     invoke("connection_delete", { slug }),

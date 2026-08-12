@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::model::{ConnectionKind, ConnectionSummary, NewConnection};
+use crate::model::{ConnectionKind, ConnectionSummary, ConnectionUpdate, NewConnection};
 
 #[derive(Debug, Error)]
 pub enum ConnectionsError {
@@ -138,6 +138,54 @@ pub async fn create(
     })
 }
 
+/// Atualiza tudo menos `id`, `slug` e `created_at` — mesma convenção de
+/// `store::queries::update` (slug é a chave estável, não um campo editável).
+pub async fn update(
+    pool: &SqlitePool,
+    slug: &str,
+    input: &ConnectionUpdate,
+) -> Result<ConnectionSummary, ConnectionsError> {
+    let existing = get_by_slug(pool, slug).await?;
+    let now = Utc::now().to_rfc3339();
+    let max_rows = input.max_rows.unwrap_or(existing.max_rows);
+    let timeout_ms = input.timeout_ms.unwrap_or(existing.timeout_ms);
+
+    sqlx::query(
+        "UPDATE connection SET name = ?, kind = ?, host = ?, port = ?, database = ?, \
+         service_name = ?, username = ?, max_rows = ?, timeout_ms = ?, updated_at = ? \
+         WHERE slug = ?",
+    )
+    .bind(&input.name)
+    .bind(kind_str(input.kind))
+    .bind(&input.host)
+    .bind(input.port as i64)
+    .bind(&input.database)
+    .bind(&input.service_name)
+    .bind(&input.username)
+    .bind(max_rows)
+    .bind(timeout_ms)
+    .bind(&now)
+    .bind(slug)
+    .execute(pool)
+    .await?;
+
+    Ok(ConnectionSummary {
+        id: existing.id,
+        slug: slug.to_string(),
+        name: input.name.clone(),
+        kind: input.kind,
+        host: input.host.clone(),
+        port: input.port,
+        database: input.database.clone(),
+        service_name: input.service_name.clone(),
+        username: input.username.clone(),
+        max_rows,
+        timeout_ms,
+        created_at: existing.created_at,
+        updated_at: now,
+    })
+}
+
 pub async fn list(pool: &SqlitePool) -> Result<Vec<ConnectionSummary>, ConnectionsError> {
     let rows: Vec<ConnectionRow> = sqlx::query_as(
         "SELECT id, slug, name, kind, host, port, database, service_name, username, \
@@ -250,6 +298,64 @@ mod tests {
         let pool = test_pool().await;
         let err = get_by_slug(&pool, "não-existe").await.unwrap_err();
         assert!(matches!(err, ConnectionsError::NotFound { .. }));
+    }
+
+    fn sample_update(name: &str) -> ConnectionUpdate {
+        ConnectionUpdate {
+            name: name.to_string(),
+            kind: ConnectionKind::Postgres,
+            host: "db.internal".to_string(),
+            port: 5432,
+            database: Some("erp".to_string()),
+            service_name: None,
+            username: "app_readonly".to_string(),
+            password: None,
+            max_rows: None,
+            timeout_ms: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn update_changes_fields_but_keeps_id_slug_and_created_at() {
+        let pool = test_pool().await;
+        let created = create(&pool, &sample_input("erp_prod")).await.unwrap();
+
+        let mut input = sample_update("ERP produção (renomeado)");
+        input.host = "db2.internal".to_string();
+        input.port = 5433;
+        let updated = update(&pool, "erp_prod", &input).await.unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.slug, "erp_prod");
+        assert_eq!(updated.created_at, created.created_at);
+        assert_eq!(updated.name, "ERP produção (renomeado)");
+        assert_eq!(updated.host, "db2.internal");
+        assert_eq!(updated.port, 5433);
+
+        let listed = get_by_slug(&pool, "erp_prod").await.unwrap();
+        assert_eq!(listed.host, "db2.internal");
+    }
+
+    #[tokio::test]
+    async fn update_of_unknown_slug_is_not_found() {
+        let pool = test_pool().await;
+        let err = update(&pool, "não-existe", &sample_update("x"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ConnectionsError::NotFound { .. }));
+    }
+
+    #[tokio::test]
+    async fn update_without_max_rows_or_timeout_keeps_existing_values() {
+        let pool = test_pool().await;
+        create(&pool, &sample_input("erp_prod")).await.unwrap();
+
+        let updated = update(&pool, "erp_prod", &sample_update("ERP produção"))
+            .await
+            .unwrap();
+
+        assert_eq!(updated.max_rows, 1000);
+        assert_eq!(updated.timeout_ms, 30_000);
     }
 
     #[tokio::test]

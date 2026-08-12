@@ -31,6 +31,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ipc::connections::connection_list,
             ipc::connections::connection_create,
+            ipc::connections::connection_update,
             ipc::connections::connection_delete,
             ipc::connections::connection_test,
             ipc::query::query_list,

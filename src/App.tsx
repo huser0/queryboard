@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import { client } from "./ipc/client";
-import type { ConnectionSummary, NewConnection, QuerySummary } from "./ipc/types";
+import type { ConnectionSummary, ConnectionUpdate, NewConnection, QuerySummary } from "./ipc/types";
 import { ConnectionForm } from "./features/connections/ConnectionForm";
 import { ConnectionList } from "./features/connections/ConnectionList";
 import { SchemaExplorer } from "./features/connections/SchemaExplorer";
@@ -14,6 +14,7 @@ function App() {
   const [activeConnectionSlug, setActiveConnectionSlug] = useState<string | null>(null);
   const [creatingConnection, setCreatingConnection] = useState(false);
   const [showConnectionForm, setShowConnectionForm] = useState(false);
+  const [editingConnection, setEditingConnection] = useState<ConnectionSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   async function refresh() {
@@ -37,6 +38,17 @@ function App() {
       await client.connectionCreate(input);
       await refresh();
       setShowConnectionForm(false);
+    } finally {
+      setCreatingConnection(false);
+    }
+  }
+
+  async function handleUpdateConnection(slug: string, input: ConnectionUpdate) {
+    setCreatingConnection(true);
+    try {
+      await client.connectionUpdate(slug, input);
+      await refresh();
+      setEditingConnection(null);
     } finally {
       setCreatingConnection(false);
     }
@@ -75,16 +87,32 @@ function App() {
                 setActiveConnectionSlug(null);
               }
             }}
+            onEdit={(connection) => {
+              setEditingConnection(connection);
+              setShowConnectionForm(false);
+            }}
           />
           <button
             type="button"
             data-variant="primary"
-            onClick={() => { setShowConnectionForm((v) => !v); }}
+            onClick={() => {
+              setEditingConnection(null);
+              setShowConnectionForm((v) => !v);
+            }}
           >
             + Nova connection
           </button>
           {showConnectionForm && (
             <ConnectionForm onSubmit={handleCreateConnection} submitting={creatingConnection} />
+          )}
+          {editingConnection && (
+            <ConnectionForm
+              editing={editingConnection}
+              onSubmit={handleCreateConnection}
+              onUpdate={handleUpdateConnection}
+              onCancel={() => { setEditingConnection(null); }}
+              submitting={creatingConnection}
+            />
           )}
           <SchemaExplorer connectionSlug={activeConnectionSlug} />
         </aside>
