@@ -414,6 +414,19 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="tru
   color: var(--color-muted-text);
 }
 
+/* Tabela e coluna clicáveis inserem o identificador no editor ad-hoc
+   ativo (ver Board.insertSchemaText) — hover/active tornam essa
+   interatividade visível, não só o cursor de ponteiro do <button>. */
+.schema-explorer__table-toggle:hover,
+.schema-explorer__column:hover {
+  background-color: var(--color-muted-bg);
+}
+
+.schema-explorer__table-toggle:active,
+.schema-explorer__column:active {
+  background-color: var(--color-primary-bg);
+}
+
 .schema-explorer__columns {
   list-style: none;
   margin: 0 0 0.3rem 1.3rem;
@@ -423,12 +436,19 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="tru
   gap: 0.1rem;
 }
 
-.schema-explorer__columns li {
+.schema-explorer__column {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
   padding: 0.15rem 0.3rem;
   font-size: 0.76rem;
+  font-weight: 400;
 }
 
 .schema-explorer__column-name {

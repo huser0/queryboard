@@ -26,8 +26,12 @@ export interface AdhocSlot {
   savedAsSlug: string | null;
 }
 
-export function newAdhocSlot(id: string, connectionSlug: string | null = null): AdhocSlot {
-  return { id, connectionSlug, sql: "", paramNames: [], savedAsSlug: null };
+export function newAdhocSlot(
+  id: string,
+  connectionSlug: string | null = null,
+  sql = "",
+): AdhocSlot {
+  return { id, connectionSlug, sql, paramNames: [], savedAsSlug: null };
 }
 
 /** "Editar" uma query salva abre uma cópia editável dela como bloco

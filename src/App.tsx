@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { client } from "./ipc/client";
 import type { ConnectionSummary, ConnectionUpdate, NewConnection, QuerySummary } from "./ipc/types";
@@ -6,9 +6,10 @@ import { ConnectionForm } from "./features/connections/ConnectionForm";
 import { ConnectionList } from "./features/connections/ConnectionList";
 import { SchemaExplorer } from "./features/connections/SchemaExplorer";
 import { ErrorPanel } from "./components/ErrorPanel";
-import { Board } from "./features/board/Board";
+import { Board, type BoardHandle } from "./features/board/Board";
 
 function App() {
+  const boardRef = useRef<BoardHandle>(null);
   const [connections, setConnections] = useState<ConnectionSummary[]>([]);
   const [queries, setQueries] = useState<QuerySummary[]>([]);
   const [activeConnectionSlug, setActiveConnectionSlug] = useState<string | null>(null);
@@ -113,11 +114,15 @@ function App() {
               submitting={creatingConnection}
             />
           )}
-          <SchemaExplorer connectionSlug={activeConnectionSlug} />
+          <SchemaExplorer
+            connectionSlug={activeConnectionSlug}
+            onInsert={(text) => { boardRef.current?.insertSchemaText(text); }}
+          />
         </aside>
 
         <div className="main-panel">
           <Board
+            ref={boardRef}
             queries={queries}
             connections={connections}
             activeConnectionSlug={activeConnectionSlug}

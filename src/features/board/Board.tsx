@@ -7,14 +7,14 @@
 // pertence a um módulo `flow/` de verdade (roadmap itens 6/9/10/12), não
 // deve crescer dentro deste componente.
 
-import { useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { client, type ResultSet } from "../../ipc/client";
 import type { ConnectionSummary, QuerySummary } from "../../ipc/types";
 import { ParamsPanel } from "../queries/ParamsPanel";
 import { QuerySelector } from "./QuerySelector";
 import { RunAllBar } from "./RunAllBar";
 import { ResultBoard } from "./ResultBoard";
-import { AdhocQueryBlock } from "./AdhocQueryBlock";
+import { AdhocQueryBlock, type AdhocQueryBlockHandle } from "./AdhocQueryBlock";
 import { AdhocTabs } from "./AdhocTabs";
 import { mergedParamNames, missingParamNames, paramsFor } from "./params";
 import {
@@ -31,6 +31,13 @@ interface BoardProps {
   activeConnectionSlug: string | null;
   onQuerySaved: () => void;
   onQueryDeleted: () => void;
+}
+
+export interface BoardHandle {
+  /** Chamado pelo SchemaExplorer (na sidebar) quando o usuário clica num
+   * nome de tabela/coluna. Insere na posição do cursor do bloco ad-hoc
+   * ativo; se nenhum estiver aberto, abre um novo já com o texto. */
+  insertSchemaText: (text: string) => void;
 }
 
 /** Representa um `AdhocSlot` executável no mesmo formato de `QuerySummary`
@@ -51,13 +58,11 @@ function adhocAsQuerySummary(slot: AdhocSlot): QuerySummary {
   };
 }
 
-export function Board({
-  queries,
-  connections,
-  activeConnectionSlug,
-  onQuerySaved,
-  onQueryDeleted,
-}: BoardProps) {
+export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
+  { queries, connections, activeConnectionSlug, onQuerySaved, onQueryDeleted },
+  ref,
+) {
+  const adhocBlockRef = useRef<AdhocQueryBlockHandle>(null);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [adhocSlots, setAdhocSlots] = useState<AdhocSlot[]>([]);
   // Qual aba ad-hoc está visível — as outras continuam rodando em
@@ -207,6 +212,30 @@ export function Board({
     setActiveAdhocId(id);
   }
 
+  // Usado só pelo SchemaExplorer (ver `insertSchemaText` abaixo): clicar
+  // num nome de tabela/coluna sem nenhum bloco ad-hoc aberto precisa
+  // abrir um, já com o texto — em vez de simplesmente não fazer nada.
+  function addAdhocTabWithSql(initialSql: string) {
+    const id = crypto.randomUUID();
+    setAdhocSlots((prev) => [...prev, newAdhocSlot(id, activeConnectionSlug, initialSql)]);
+    setActiveAdhocId(id);
+  }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      insertSchemaText(text: string) {
+        if (activeAdhocId !== null) {
+          adhocBlockRef.current?.insertAtCursor(text);
+        } else {
+          addAdhocTabWithSql(text);
+        }
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeAdhocId],
+  );
+
   // "Editar" abre uma cópia editável da query salva como bloco ad-hoc —
   // reusa o mecanismo de "Salvar" que já existe (ver AdhocQueryBlock),
   // que detecta `savedAsSlug` já preenchido e chama `queryUpdate` em vez
@@ -307,6 +336,7 @@ export function Board({
         {activeAdhocSlot !== undefined ? (
           <AdhocQueryBlock
             key={activeAdhocSlot.id}
+            ref={adhocBlockRef}
             slot={activeAdhocSlot}
             connections={connections}
             disabled={runningRunIds.includes(activeAdhocSlot.id)}
@@ -341,4 +371,4 @@ export function Board({
       />
     </section>
   );
-}
+});

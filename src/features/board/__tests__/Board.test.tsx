@@ -1,7 +1,8 @@
+import { forwardRef, useImperativeHandle, useRef, type ComponentProps } from "react";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Board } from "../Board";
+import { Board, type BoardHandle } from "../Board";
 import { client } from "../../../ipc/client";
 import type { ConnectionSummary, QuerySummary } from "../../../ipc/types";
 
@@ -21,20 +22,36 @@ vi.mock("../../../ipc/client", () => ({
 // ausente) — trocado por um stand-in leve nos testes que precisam
 // preencher o editor via `user.type`. `AdhocQueryBlock.test.tsx` já
 // cobre a integração real com o CodeMirror sem depender de digitação.
+// `insertAtCursor` usa a posição de cursor nativa da <textarea> (que o
+// jsdom suporta) pra continuar exercitando o mesmo contrato de ref que
+// o `QueryEditor` real expõe pro clique em Tabelas/colunas inserir.
 vi.mock("../../queries/QueryEditor", () => ({
-  QueryEditor: ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <textarea
-      aria-label="Editor de SQL"
-      value={value}
-      onChange={(e) => { onChange(e.currentTarget.value); }}
-    />
-  ),
+  QueryEditor: forwardRef<
+    { insertAtCursor: (text: string) => void },
+    { value: string; onChange: (value: string) => void }
+  >(function QueryEditor({ value, onChange }, ref) {
+    const taRef = useRef<HTMLTextAreaElement>(null);
+    useImperativeHandle(
+      ref,
+      () => ({
+        insertAtCursor(text: string) {
+          const el = taRef.current;
+          const start = el?.selectionStart ?? value.length;
+          const end = el?.selectionEnd ?? value.length;
+          onChange(value.slice(0, start) + text + value.slice(end));
+        },
+      }),
+      [value, onChange],
+    );
+    return (
+      <textarea
+        ref={taRef}
+        aria-label="Editor de SQL"
+        value={value}
+        onChange={(e) => { onChange(e.currentTarget.value); }}
+      />
+    );
+  }),
 }));
 
 const connQueryboardLocal: ConnectionSummary = {
@@ -391,5 +408,58 @@ describe("Board", () => {
       });
     });
     expect(client.queryCreate).not.toHaveBeenCalled();
+  });
+
+  describe("insertSchemaText (chamado pelo SchemaExplorer na sidebar)", () => {
+    function BoardWithRef(props: ComponentProps<typeof Board>) {
+      const ref = useRef<BoardHandle>(null);
+      return (
+        <div>
+          <button type="button" onClick={() => { ref.current?.insertSchemaText("offers"); }}>
+            simular clique no schema
+          </button>
+          <Board ref={ref} {...props} />
+        </div>
+      );
+    }
+
+    it("opens a new ad-hoc block already filled in when none is open", async () => {
+      const user = userEvent.setup();
+      render(
+        <BoardWithRef
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      expect(screen.queryByLabelText("Editor de SQL")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /simular clique no schema/i }));
+
+      expect(screen.getByLabelText("Editor de SQL")).toHaveValue("offers");
+    });
+
+    it("inserts at the cursor of the already-open ad-hoc block instead of opening a new one", async () => {
+      const user = userEvent.setup();
+      render(
+        <BoardWithRef
+          queries={[]}
+          connections={[]}
+          onQuerySaved={() => {}}
+          onQueryDeleted={() => {}}
+          activeConnectionSlug={null}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
+      await user.type(screen.getByLabelText("Editor de SQL"), "select * from ");
+      await user.click(screen.getByRole("button", { name: /simular clique no schema/i }));
+
+      expect(screen.getByLabelText("Editor de SQL")).toHaveValue("select * from offers");
+      // Só o bloco ativo ganhou o texto — nenhum segundo bloco foi criado.
+      expect(screen.getAllByLabelText("Editor de SQL")).toHaveLength(1);
+    });
   });
 });

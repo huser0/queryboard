@@ -1,4 +1,5 @@
-import CodeMirror from "@uiw/react-codemirror";
+import { forwardRef, useImperativeHandle, useRef } from "react";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { sql as sqlLang } from "@codemirror/lang-sql";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
@@ -23,17 +24,49 @@ interface QueryEditorProps {
   error: string | null;
 }
 
-export function QueryEditor({ value, onChange, error }: QueryEditorProps) {
-  return (
-    <div>
-      <CodeMirror
-        value={value}
-        height="200px"
-        extensions={[sqlLang(), syntaxHighlighting(sqlHighlightStyle)]}
-        onChange={onChange}
-        aria-label="Editor de SQL"
-      />
-      {error !== null && <div role="alert">{error}</div>}
-    </div>
-  );
+export interface QueryEditorHandle {
+  /** Insere `text` na posição do cursor (substituindo a seleção, se
+   * houver) e devolve o foco ao editor — usado pelo SchemaExplorer pra
+   * inserir nome de tabela/coluna clicado sem o usuário precisar
+   * clicar de volta no editor primeiro. */
+  insertAtCursor: (text: string) => void;
 }
+
+export const QueryEditor = forwardRef<QueryEditorHandle, QueryEditorProps>(
+  function QueryEditor({ value, onChange, error }, ref) {
+    const cmRef = useRef<ReactCodeMirrorRef>(null);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        insertAtCursor(text: string) {
+          const view = cmRef.current?.view;
+          if (view === undefined) {
+            return;
+          }
+          const { from, to } = view.state.selection.main;
+          view.dispatch({
+            changes: { from, to, insert: text },
+            selection: { anchor: from + text.length },
+          });
+          view.focus();
+        },
+      }),
+      [],
+    );
+
+    return (
+      <div>
+        <CodeMirror
+          ref={cmRef}
+          value={value}
+          height="200px"
+          extensions={[sqlLang(), syntaxHighlighting(sqlHighlightStyle)]}
+          onChange={onChange}
+          aria-label="Editor de SQL"
+        />
+        {error !== null && <div role="alert">{error}</div>}
+      </div>
+    );
+  },
+);

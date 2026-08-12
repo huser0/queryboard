@@ -3,6 +3,9 @@ import { client, type TableInfo } from "../../ipc/client";
 
 interface SchemaExplorerProps {
   connectionSlug: string | null;
+  /** Chamado com o identificador (nome de tabela ou coluna) clicado, pra
+   * inserir no editor de SQL ad-hoc ativo — ver `Board.insertSchemaText`. */
+  onInsert: (text: string) => void;
 }
 
 /** Árvore de tabelas/colunas da connection ativa, na sidebar — ajuda a
@@ -11,7 +14,7 @@ interface SchemaExplorerProps {
  * pelo mesmo `connection_schema` (backend) que só roda um SELECT comum
  * contra o catálogo, sujeito às mesmas garantias de somente-leitura de
  * qualquer outra query. */
-export function SchemaExplorer({ connectionSlug }: SchemaExplorerProps) {
+export function SchemaExplorer({ connectionSlug, onInsert }: SchemaExplorerProps) {
   const [tables, setTables] = useState<TableInfo[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +93,11 @@ export function SchemaExplorer({ connectionSlug }: SchemaExplorerProps) {
                   type="button"
                   className="schema-explorer__table-toggle"
                   aria-expanded={isOpen}
-                  onClick={() => { toggle(table.name); }}
+                  title={`Expandir e inserir "${table.name}" no editor`}
+                  onClick={() => {
+                    toggle(table.name);
+                    onInsert(table.name);
+                  }}
                 >
                   <span aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
                   {table.name}
@@ -99,8 +106,15 @@ export function SchemaExplorer({ connectionSlug }: SchemaExplorerProps) {
                   <ul className="schema-explorer__columns">
                     {table.columns.map((column) => (
                       <li key={column.name}>
-                        <span className="schema-explorer__column-name">{column.name}</span>
-                        <span className="schema-explorer__column-type">{column.data_type}</span>
+                        <button
+                          type="button"
+                          className="schema-explorer__column"
+                          title={`Inserir "${column.name}" no editor`}
+                          onClick={() => { onInsert(column.name); }}
+                        >
+                          <span className="schema-explorer__column-name">{column.name}</span>
+                          <span className="schema-explorer__column-type">{column.data_type}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
