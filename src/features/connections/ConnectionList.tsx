@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ConnectionSummary } from "../../ipc/types";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 
 interface ConnectionListProps {
   connections: ConnectionSummary[];
@@ -22,6 +23,7 @@ export function ConnectionList({
 }: ConnectionListProps) {
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
+  const [confirmingSlug, setConfirmingSlug] = useState<string | null>(null);
 
   async function handleTest(slug: string) {
     setTestStates((prev) => ({ ...prev, [slug]: { status: "idle" } }));
@@ -37,6 +39,7 @@ export function ConnectionList({
   }
 
   async function handleDelete(slug: string) {
+    setConfirmingSlug(null);
     try {
       await onDelete(slug);
       setDeleteErrors((prev) =>
@@ -51,38 +54,61 @@ export function ConnectionList({
     return <p className="empty-state">Nenhuma conexão cadastrada ainda.</p>;
   }
 
+  const confirming = connections.find((c) => c.slug === confirmingSlug) ?? null;
+
   return (
-    <ul aria-label="Conexões cadastradas">
-      {connections.map((conn) => {
-        const testState = testStates[conn.slug] ?? { status: "idle" as const };
-        return (
-          <li key={conn.id}>
-            <button
-              type="button"
-              aria-current={conn.slug === selectedSlug}
-              onClick={() => { onSelect(conn.slug); }}
-            >
-              {conn.name} ({conn.kind}) — {conn.slug}
-            </button>
-            <button type="button" onClick={() => void handleTest(conn.slug)}>
-              Testar
-            </button>
-            <button type="button" onClick={() => { onEdit(conn); }}>
-              Editar
-            </button>
-            <button type="button" data-variant="danger" onClick={() => void handleDelete(conn.slug)}>
-              Remover
-            </button>
-            {testState.status === "ok" && <span role="status">conexão ok</span>}
-            {testState.status === "error" && (
-              <span role="alert">falha: {testState.message}</span>
-            )}
-            {deleteErrors[conn.slug] !== undefined && (
-              <span role="alert">{deleteErrors[conn.slug]}</span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <Fragment>
+      <ul aria-label="Conexões cadastradas">
+        {connections.map((conn) => {
+          const testState = testStates[conn.slug] ?? { status: "idle" as const };
+          return (
+            <li key={conn.id}>
+              <button
+                type="button"
+                aria-current={conn.slug === selectedSlug}
+                onClick={() => { onSelect(conn.slug); }}
+              >
+                {conn.name} ({conn.kind}) — {conn.slug}
+              </button>
+              <button type="button" onClick={() => void handleTest(conn.slug)}>
+                Testar
+              </button>
+              <button type="button" onClick={() => { onEdit(conn); }}>
+                Editar
+              </button>
+              <button
+                type="button"
+                className="action-subtle"
+                onClick={() => { setConfirmingSlug(conn.slug); }}
+              >
+                Remover
+              </button>
+              {testState.status === "ok" && <span role="status">conexão ok</span>}
+              {testState.status === "error" && (
+                <span role="alert">falha: {testState.message}</span>
+              )}
+              {deleteErrors[conn.slug] !== undefined && (
+                <span role="alert">{deleteErrors[conn.slug]}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming !== null ? `Remover ${confirming.name}?` : ""}
+        description={
+          confirming !== null
+            ? `A connection "${confirming.slug}" será removida. Essa ação não pode ser desfeita.`
+            : ""
+        }
+        onConfirm={() => {
+          if (confirming !== null) {
+            void handleDelete(confirming.slug);
+          }
+        }}
+        onCancel={() => { setConfirmingSlug(null); }}
+      />
+    </Fragment>
   );
 }

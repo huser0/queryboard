@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { QuerySelector } from "../QuerySelector";
@@ -53,7 +53,7 @@ describe("QuerySelector", () => {
     expect(screen.getByRole("checkbox", { name: /a/i })).toBeDisabled();
   });
 
-  it("calls onDelete when Remover is clicked", async () => {
+  it("asks for confirmation and only calls onDelete once it's confirmed", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(
@@ -68,7 +68,33 @@ describe("QuerySelector", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /remover/i }));
+    expect(onDelete).not.toHaveBeenCalled();
+
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: /remover/i }));
     expect(onDelete).toHaveBeenCalledWith("a");
+  });
+
+  it("does not delete when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(
+      <QuerySelector
+        queries={[query("a")]}
+        selectedSlugs={[]}
+        runningSlugs={[]}
+        onChange={vi.fn()}
+        onDelete={onDelete}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /remover/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: /cancelar/i }));
+
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("shows an inline error when onDelete rejects", async () => {
@@ -86,6 +112,8 @@ describe("QuerySelector", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /remover/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: /remover/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("não é possível remover");
   });
 

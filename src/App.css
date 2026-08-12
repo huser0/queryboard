@@ -805,6 +805,66 @@ section > button {
   color: #666;
 }
 
+/* Ação destrutiva discreta na listagem (connection/query salva) — cinza
+   em repouso, um sinal vermelho tênue só ao passar o mouse. O vermelho
+   "de verdade" fica reservado pro botão de confirmar dentro do diálogo
+   (.confirm-dialog) e pra indicador de erro de execução — ver
+   "hierarquia de ações". */
+button.action-subtle {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--color-muted-text);
+  font-weight: 500;
+}
+
+button.action-subtle:hover {
+  border-color: transparent;
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+button.action-subtle:disabled {
+  background-color: transparent;
+}
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 15, 15, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 380px;
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 12px 32px rgba(15, 15, 15, 0.25);
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.confirm-dialog p {
+  margin: 0 0 1.25rem;
+  font-size: 0.88rem;
+  color: var(--color-muted-text);
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
@@ -910,5 +970,10 @@ section > button {
 
   .cm-editor {
     border-color: #4a4a4a;
+  }
+
+  .confirm-dialog {
+    background-color: #262626;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   }
 }

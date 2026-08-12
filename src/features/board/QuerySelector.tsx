@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { QuerySummary } from "../../ipc/types";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 
 interface QuerySelectorProps {
   queries: QuerySummary[];
@@ -19,6 +20,7 @@ export function QuerySelector({
   onEdit,
 }: QuerySelectorProps) {
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
+  const [confirmingSlug, setConfirmingSlug] = useState<string | null>(null);
 
   function toggle(slug: string) {
     if (selectedSlugs.includes(slug)) {
@@ -29,6 +31,7 @@ export function QuerySelector({
   }
 
   async function handleDelete(slug: string) {
+    setConfirmingSlug(null);
     try {
       await onDelete(slug);
       setDeleteErrors((prev) =>
@@ -46,6 +49,8 @@ export function QuerySelector({
       </p>
     );
   }
+
+  const confirming = queries.find((q) => q.slug === confirmingSlug) ?? null;
 
   return (
     <div className="query-selector" role="group" aria-label="Queries do painel">
@@ -70,8 +75,8 @@ export function QuerySelector({
           </button>
           <button
             type="button"
-            data-variant="danger"
-            onClick={() => void handleDelete(query.slug)}
+            className="action-subtle"
+            onClick={() => { setConfirmingSlug(query.slug); }}
             disabled={runningSlugs.includes(query.slug)}
           >
             Remover
@@ -81,6 +86,21 @@ export function QuerySelector({
           )}
         </div>
       ))}
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming !== null ? `Remover ${confirming.name}?` : ""}
+        description={
+          confirming !== null
+            ? `A query "${confirming.slug}" será removida do painel. Essa ação não pode ser desfeita.`
+            : ""
+        }
+        onConfirm={() => {
+          if (confirming !== null) {
+            void handleDelete(confirming.slug);
+          }
+        }}
+        onCancel={() => { setConfirmingSlug(null); }}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Board } from "../Board";
@@ -334,6 +334,9 @@ describe("Board", () => {
       throw new Error("expected a Remover button for consulta_oferta");
     }
     await user.click(removeButton);
+
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: /^remover$/i }));
 
     await waitFor(() => {
       expect(client.queryDelete).toHaveBeenCalledWith("consulta_oferta");
