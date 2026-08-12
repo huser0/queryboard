@@ -42,7 +42,7 @@ const connA: ConnectionSummary = {
 describe("App", () => {
   it("renders the app shell and loads connections/queries from the backend", async () => {
     render(<App />);
-    expect(screen.getByRole("heading", { name: "queryboard" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Conexões" })).toBeInTheDocument();
     await waitFor(() => {
       expect(client.connectionList).toHaveBeenCalledOnce();
       expect(client.queryList).toHaveBeenCalledOnce();
@@ -60,7 +60,7 @@ describe("App", () => {
     vi.mocked(client.connectionList).mockResolvedValueOnce([connA]);
     render(<App />);
 
-    expect(await screen.findByText(/nenhuma connection selecionada/i)).toBeInTheDocument();
+    expect(await screen.findByText(/nenhuma selecionada/i)).toBeInTheDocument();
 
     const connectionButton = await screen.findByRole("button", {
       name: /postgres local.*queryboard_local/i,
@@ -68,8 +68,6 @@ describe("App", () => {
     await user.click(connectionButton);
 
     expect(connectionButton).toHaveAttribute("aria-current", "true");
-    expect(
-      screen.getByText(/conectado a: postgres local \(queryboard_local\)/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/postgres local \(queryboard_local\)/i)).toBeInTheDocument();
   });
 });

@@ -92,7 +92,7 @@ describe("AdhocQueryBlock", () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
 
     await waitFor(() => {
       expect(client.queryExtractParams).toHaveBeenCalledWith(
@@ -120,7 +120,7 @@ describe("AdhocQueryBlock", () => {
     const onSaved = vi.fn();
 
     render(<ControlledBlock connections={[conn]} initialSql="SELECT 1" onSaved={onSaved} />);
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
 
     // Espera a extração debounced terminar (e a atualização de estado
     // que ela dispara) antes de salvar — senão o timer pode resolver
@@ -153,7 +153,7 @@ describe("AdhocQueryBlock", () => {
     );
 
     render(<ControlledBlock connections={[conn]} initialSql="SELECT 1" />);
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
 
     await user.type(screen.getByLabelText("Slug para salvar"), "x");
     await user.click(screen.getByRole("button", { name: /^salvar$/i }));

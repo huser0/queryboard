@@ -35,19 +35,6 @@
   text-align: left;
 }
 
-/* Cabeçalho compacto — antes era um <h1> centralizado ocupando uma linha
-   inteira sozinho e um banner de conexão ativa em outra logo abaixo; numa
-   tela ultrawide isso é espaço vertical desperdiçado que o Painel
-   aproveitaria melhor (ver pedido de layout ultrawide). */
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e2e2e2;
-}
-
 .app-shell {
   display: flex;
   align-items: flex-start;
@@ -80,17 +67,33 @@
   min-width: 0;
 }
 
+/* Título de seção + status de conexão ativa na mesma linha — a faixa de
+   cabeçalho do app foi eliminada (duplicava o título que já aparece na
+   barra de título da janela); o status de "conectado a" faz mais sentido
+   aqui, colado no que ele descreve, do que solto no topo da página. */
+.sidebar__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.sidebar__heading h2 {
+  margin: 0;
+}
+
 .active-connection-banner {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 999px;
-  background-color: #eef2ff;
-  color: #2f3f8f;
-  font-size: 0.82rem;
-  font-weight: 600;
+  gap: 0.35rem;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-success);
 }
 
 .active-connection-banner::before {
@@ -103,16 +106,7 @@
 }
 
 .active-connection-banner[data-connected="false"] {
-  background-color: var(--color-muted-bg);
   color: var(--color-muted-text);
-}
-
-h1 {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-align: left;
 }
 
 /* "Connections"/"Painel" viravam títulos do mesmo peso do <h1> do app —
@@ -145,7 +139,8 @@ label {
   color: #444;
 }
 
-form[aria-label="Nova connection"] {
+form[aria-label="Nova conexão"],
+form[aria-label="Editar conexão"] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
@@ -155,7 +150,8 @@ form[aria-label="Nova connection"] {
   border-top: 1px solid #e2e2e2;
 }
 
-form[aria-label="Nova connection"] label {
+form[aria-label="Nova conexão"] label,
+form[aria-label="Editar conexão"] label {
   flex: 1 1 140px;
 }
 
@@ -282,7 +278,7 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-ul[aria-label="Connections cadastradas"] {
+ul[aria-label="Conexões cadastradas"] {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -296,7 +292,7 @@ ul[aria-label="Connections cadastradas"] {
    sidebar de 300px. Agora cada connection é uma "linha-cartão": o botão
    de seleção ocupa a linha inteira (nome em destaque, kind/slug
    discretos), as ações pequenas ficam por baixo. */
-ul[aria-label="Connections cadastradas"] li {
+ul[aria-label="Conexões cadastradas"] li {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -306,30 +302,30 @@ ul[aria-label="Connections cadastradas"] li {
   background-color: var(--color-muted-bg);
 }
 
-ul[aria-label="Connections cadastradas"] li > button:first-child:not([aria-current="true"]) {
+ul[aria-label="Conexões cadastradas"] li > button:first-child:not([aria-current="true"]) {
   background-color: transparent;
   border-color: transparent;
   box-shadow: none;
 }
 
-ul[aria-label="Connections cadastradas"] li > button:first-child {
+ul[aria-label="Conexões cadastradas"] li > button:first-child {
   flex: 1 1 100%;
   text-align: left;
   padding: 0.3rem 0.4rem;
 }
 
-ul[aria-label="Connections cadastradas"] li > button:not(:first-child) {
+ul[aria-label="Conexões cadastradas"] li > button:not(:first-child) {
   font-size: 0.76rem;
   padding: 0.3rem 0.55rem;
 }
 
-ul[aria-label="Connections cadastradas"] li [role="status"],
-ul[aria-label="Connections cadastradas"] li [role="alert"] {
+ul[aria-label="Conexões cadastradas"] li [role="status"],
+ul[aria-label="Conexões cadastradas"] li [role="alert"] {
   flex: 1 1 100%;
   font-size: 0.76rem;
 }
 
-ul[aria-label="Connections cadastradas"] button[aria-current="true"] {
+ul[aria-label="Conexões cadastradas"] button[aria-current="true"] {
   border-color: #396cd8;
   background-color: #396cd8;
   color: #ffffff;
@@ -786,17 +782,13 @@ section > button {
     --shadow-card: none;
   }
 
-  .app-header {
-    border-bottom-color: #3d3d3d;
-  }
-
   section,
   .sidebar {
     background-color: #262626;
     border-color: #3d3d3d;
   }
 
-  ul[aria-label="Connections cadastradas"] li {
+  ul[aria-label="Conexões cadastradas"] li {
     background-color: #333;
   }
 
@@ -808,7 +800,8 @@ section > button {
     border-top-color: #3d3d3d;
   }
 
-  form[aria-label="Nova connection"],
+  form[aria-label="Nova conexão"],
+  form[aria-label="Editar conexão"],
   .board-adhoc-zone,
   [aria-label="Barra de execução do painel"],
   .board-panel__save-row {
@@ -819,17 +812,7 @@ section > button {
     background-color: #262626;
   }
 
-  .active-connection-banner {
-    background-color: #1f2a4d;
-    color: #c9d4ff;
-  }
-
-  .active-connection-banner[data-connected="false"] {
-    background-color: var(--color-muted-bg);
-    color: var(--color-muted-text);
-  }
-
-  ul[aria-label="Connections cadastradas"] button[aria-current="true"] {
+  ul[aria-label="Conexões cadastradas"] button[aria-current="true"] {
     background-color: #396cd8;
     color: #ffffff;
   }

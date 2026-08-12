@@ -199,7 +199,7 @@ describe("Board", () => {
     await user.click(screen.getByRole("checkbox", { name: /consulta oferta/i }));
 
     await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
     await user.type(
       screen.getByLabelText("Editor de SQL"),
       "SELECT * FROM t WHERE id = :offer_id",
@@ -254,7 +254,7 @@ describe("Board", () => {
 
     await user.click(screen.getByRole("checkbox", { name: /consulta oferta/i }));
     await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
     await user.type(screen.getByLabelText("Editor de SQL"), "SELECT 1");
     await user.type(screen.getByLabelText("offer_id"), "5001");
     await user.click(screen.getByRole("button", { name: /^executar tudo$/i }));
@@ -276,7 +276,7 @@ describe("Board", () => {
     render(<Board queries={[]} connections={[connQueryboardLocal]} onQuerySaved={() => {}} onQueryDeleted={() => {}} activeConnectionSlug={null} />);
 
     await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
-    await user.selectOptions(screen.getByLabelText("Connection"), "queryboard_local");
+    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
     await user.type(screen.getByLabelText("Editor de SQL"), "SELECT 1");
     await user.click(screen.getByRole("button", { name: /^executar tudo$/i }));
 
@@ -310,7 +310,7 @@ describe("Board", () => {
 
     await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
 
-    expect(screen.getByLabelText("Connection")).toHaveValue("queryboard_local");
+    expect(screen.getByLabelText("Conexão")).toHaveValue("queryboard_local");
   });
 
   it("deletes a saved query, drops it from selection/results, and notifies the parent", async () => {

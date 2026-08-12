@@ -16,7 +16,7 @@ export function QueryPanel({ query, state, onRun, onCancel }: QueryPanelProps) {
     <section className="board-panel" aria-label={`Painel de ${query.name}`}>
       <h3>{query.name}</h3>
       <p className="board-panel__meta">
-        slug: {query.slug} · connection: {query.connection_slug}
+        slug: {query.slug} · conexão: {query.connection_slug}
       </p>
       <RunBar
         status={state.status}

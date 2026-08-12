@@ -48,11 +48,11 @@ export function ConnectionList({
   }
 
   if (connections.length === 0) {
-    return <p className="empty-state">Nenhuma connection cadastrada ainda.</p>;
+    return <p className="empty-state">Nenhuma conexão cadastrada ainda.</p>;
   }
 
   return (
-    <ul aria-label="Connections cadastradas">
+    <ul aria-label="Conexões cadastradas">
       {connections.map((conn) => {
         const testState = testStates[conn.slug] ?? { status: "idle" as const };
         return (

@@ -58,23 +58,22 @@ function App() {
 
   return (
     <main className="container">
-      <header className="app-header">
-        <h1>queryboard</h1>
-        <span
-          className="active-connection-banner"
-          role="status"
-          data-connected={activeConnection !== null}
-        >
-          {activeConnection !== null
-            ? `Conectado a: ${activeConnection.name} (${activeConnection.slug})`
-            : "Nenhuma connection selecionada"}
-        </span>
-      </header>
       {loadError !== null && <ErrorPanel message={loadError} />}
 
       <div className="app-shell">
-        <aside className="sidebar" aria-label="Connections">
-          <h2>Connections</h2>
+        <aside className="sidebar" aria-label="Conexões">
+          <div className="sidebar__heading">
+            <h2>Conexões</h2>
+            <span
+              className="active-connection-banner"
+              role="status"
+              data-connected={activeConnection !== null}
+            >
+              {activeConnection !== null
+                ? `${activeConnection.name} (${activeConnection.slug})`
+                : "nenhuma selecionada"}
+            </span>
+          </div>
           <ConnectionList
             connections={connections}
             selectedSlug={activeConnectionSlug}
@@ -100,7 +99,7 @@ function App() {
               setShowConnectionForm((v) => !v);
             }}
           >
-            + Nova connection
+            + Nova conexão
           </button>
           {showConnectionForm && (
             <ConnectionForm onSubmit={handleCreateConnection} submitting={creatingConnection} />

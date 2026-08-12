@@ -83,7 +83,7 @@ export function AdhocQueryBlock({
 
   async function handleSave() {
     if (slot.connectionSlug === null) {
-      setSaveError("selecione uma connection primeiro");
+      setSaveError("selecione uma conexão primeiro");
       return;
     }
     const slug = slot.savedAsSlug ?? saveSlug;
@@ -121,7 +121,7 @@ export function AdhocQueryBlock({
       {/* Fechar/reordenar essa consulta mora na aba (ver AdhocTabs), não
           aqui dentro — o card só cuida do conteúdo em si. */}
       <label>
-        Connection
+        Conexão
         <select
           value={slot.connectionSlug ?? ""}
           disabled={disabled}
