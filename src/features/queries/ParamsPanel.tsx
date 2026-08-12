@@ -10,17 +10,19 @@ export function ParamsPanel({ paramNames, values, onChange }: ParamsPanelProps) 
   }
 
   return (
-    <fieldset aria-label="Parâmetros">
-      <legend>Parâmetros</legend>
-      {paramNames.map((name) => (
-        <label key={name}>
-          {name}
-          <input
-            value={values[name] ?? ""}
-            onChange={(e) => { onChange(name, e.currentTarget.value); }}
-          />
-        </label>
-      ))}
-    </fieldset>
+    <div className="params-panel" role="group" aria-label="Parâmetros">
+      <h3 className="section-label">Parâmetros</h3>
+      <div className="params-panel__fields">
+        {paramNames.map((name) => (
+          <label key={name} data-param={name}>
+            {name}
+            <input
+              value={values[name] ?? ""}
+              onChange={(e) => { onChange(name, e.currentTarget.value); }}
+            />
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }

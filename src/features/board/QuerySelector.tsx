@@ -48,8 +48,8 @@ export function QuerySelector({
   }
 
   return (
-    <fieldset aria-label="Queries do painel">
-      <legend>Queries do painel</legend>
+    <div className="query-selector" role="group" aria-label="Queries do painel">
+      <h3 className="section-label">Queries do painel</h3>
       {queries.map((query) => (
         <div key={query.slug}>
           <label>
@@ -81,6 +81,6 @@ export function QuerySelector({
           )}
         </div>
       ))}
-    </fieldset>
+    </div>
   );
 }
