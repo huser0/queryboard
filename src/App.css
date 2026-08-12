@@ -15,6 +15,9 @@
 
   --color-primary: #396cd8;
   --color-primary-contrast: #ffffff;
+  /* Fundo tênue para "selecionado" — distinto do azul sólido, que fica
+     reservado só pra ação primária acionável (ver "semântica de cor"). */
+  --color-primary-bg: #eef2ff;
   --color-danger: #c62828;
   --color-danger-bg: #fdecea;
   --color-success: #1a7f37;
@@ -217,12 +220,10 @@ button[data-variant="primary"]:hover {
   filter: brightness(1.08);
 }
 
-button[data-variant="primary"]:disabled {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-primary-contrast);
-  opacity: 0.45;
-}
+/* Desabilitado volta pro cinza neutro genérico (button:disabled acima) —
+   antes ficava azul lavado, competindo por atenção com botões vizinhos
+   habilitados (ex. "Executar tudo" desabilitado ao lado de "Cancelar
+   tudo" habilitado). Sem override aqui, a regra genérica já resolve. */
 
 /* Botão de rodar em formato pill com um ícone de play — antes era um
    botão retangular igual a qualquer outro, sem nada que o destacasse
@@ -322,6 +323,7 @@ ul[aria-label="Conexões cadastradas"] li > button:first-child {
   flex: 1 1 100%;
   text-align: left;
   padding: 0.3rem 0.4rem;
+  border-left: 3px solid transparent;
 }
 
 ul[aria-label="Conexões cadastradas"] li > button:not(:first-child) {
@@ -335,10 +337,15 @@ ul[aria-label="Conexões cadastradas"] li [role="alert"] {
   font-size: 0.76rem;
 }
 
-ul[aria-label="Conexões cadastradas"] button[aria-current="true"] {
-  border-color: #396cd8;
-  background-color: #396cd8;
-  color: #ffffff;
+/* Selecionado != acionável — fundo tênue + borda de acento à esquerda,
+   nunca preenchimento sólido (isso fica reservado pro botão de ação
+   primária, ver button[data-variant="primary"]). Repete `li > ...
+   :first-child` (não só `button[aria-current]`) pra ganhar da regra de
+   `border-left` acima em especificidade — senão o acento nunca aparece. */
+ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="true"] {
+  background-color: var(--color-primary-bg);
+  border-left-color: var(--color-primary);
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -803,11 +810,19 @@ section > button {
     color: #f6f6f6;
     background-color: #2f2f2f;
 
+    /* Versões mais claras/saturadas — as do modo claro (#1a7f37 etc.)
+       ficam abaixo de 4.5:1 de contraste contra o fundo escuro (#262626/
+       #2f2f2f), usadas como estão em texto (.result-meta, .status-pill),
+       não só em ícone sobre fundo próprio. */
+    --color-danger: #f85149;
+    --color-success: #3fb950;
+    --color-warning: #d29922;
     --color-danger-bg: #4a2323;
     --color-success-bg: #1f3a28;
     --color-warning-bg: #4a3c14;
     --color-muted-bg: #3a3a3a;
     --color-muted-text: #b8b8b8;
+    --color-primary-bg: #1f2a4d;
     --shadow-card: none;
   }
 
@@ -841,9 +856,9 @@ section > button {
     background-color: #262626;
   }
 
-  ul[aria-label="Conexões cadastradas"] button[aria-current="true"] {
-    background-color: #396cd8;
-    color: #ffffff;
+  ul[aria-label="Conexões cadastradas"] li > button:first-child[aria-current="true"] {
+    background-color: var(--color-primary-bg);
+    color: #a9c1ff;
   }
 
   input,
