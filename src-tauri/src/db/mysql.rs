@@ -274,10 +274,18 @@ fn decode_cell(row: &MySqlRow, idx: usize, type_name: &str) -> Result<CellValue,
 
     let value = match type_name {
         "BOOLEAN" | "TINYINT(1)" => CellValue::Bool(row.try_get::<bool, _>(idx).map_err(map_err)?),
-        "TINYINT" | "TINYINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED" | "MEDIUMINT"
-        | "MEDIUMINT UNSIGNED" | "INT" | "INT UNSIGNED" | "YEAR" => {
+        "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" => {
             CellValue::Int(row.try_get::<i64, _>(idx).map_err(map_err)?)
         }
+        // sqlx distingue signed/unsigned no nível de tipo — `i64::compatible`
+        // recusa qualquer coluna com a flag UNSIGNED do fio (erro real visto
+        // contra `information_schema.columns.ordinal_position`, que é
+        // `INT UNSIGNED`). Decodifica como u32 (teto ~4.3 bilhões: cobre
+        // TINYINT/SMALLINT/MEDIUMINT/INT UNSIGNED e YEAR) e converte —
+        // sempre cabe em i64, sem precisar do fallback pra texto que o
+        // BIGINT UNSIGNED abaixo usa.
+        "TINYINT UNSIGNED" | "SMALLINT UNSIGNED" | "MEDIUMINT UNSIGNED" | "INT UNSIGNED"
+        | "YEAR" => CellValue::Int(i64::from(row.try_get::<u32, _>(idx).map_err(map_err)?)),
         "BIGINT" | "BIGINT UNSIGNED" => {
             // BIGINT UNSIGNED pode exceder i64::MAX; sqlx decodifica como
             // i64 e estouraria — cai pro caminho de texto se não couber.

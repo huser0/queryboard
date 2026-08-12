@@ -111,6 +111,18 @@ fn schema_query_for(dialect: Dialect) -> &'static str {
 fn cell_as_text(cell: Option<&CellValue>) -> Option<String> {
     match cell {
         Some(CellValue::Text(s)) => Some(s.clone()),
+        // `information_schema.columns` do MySQL devolve `table_name`/
+        // `column_name` com a flag binária no fio (bug real observado
+        // contra um MySQL 8.4 de verdade: `decode_cell` em `db/mysql.rs`
+        // mapeia isso pra `CellValue::Bytes`, não `Text`) — sem este
+        // braço, `tables_from_result` descartava toda linha em silêncio e
+        // o explorer de schema sempre mostrava "nenhuma tabela
+        // encontrada" contra MySQL. Seguro só aqui porque o SQL desta
+        // consulta (`schema_query_for`) é fixo e as colunas são sempre
+        // identificadores de catálogo, nunca dado binário arbitrário do
+        // usuário — não generalizar esse lossy-decode pro resultado de
+        // uma query comum.
+        Some(CellValue::Bytes(b)) => Some(String::from_utf8_lossy(b).into_owned()),
         _ => None,
     }
 }
@@ -392,4 +404,74 @@ fn to_bind(param_type: &str, raw: &str) -> Bind {
 
 fn guard_error_to_string(err: GuardError) -> String {
     err.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn result_set(rows: Vec<Vec<CellValue>>) -> ResultSet {
+        ResultSet {
+            columns: Vec::new(),
+            rows,
+            truncated: false,
+            elapsed_ms: 0,
+        }
+    }
+
+    #[test]
+    fn tables_from_result_groups_by_adjacent_table_name() {
+        let result = result_set(vec![
+            vec![
+                CellValue::Text("agents".into()),
+                CellValue::Text("agent_id".into()),
+                CellValue::Text("int".into()),
+            ],
+            vec![
+                CellValue::Text("agents".into()),
+                CellValue::Text("agent_name".into()),
+                CellValue::Text("varchar".into()),
+            ],
+            vec![
+                CellValue::Text("customers".into()),
+                CellValue::Text("customer_id".into()),
+                CellValue::Text("int".into()),
+            ],
+        ]);
+        let tables = tables_from_result(&result);
+        assert_eq!(tables.len(), 2);
+        assert_eq!(tables[0].name, "agents");
+        assert_eq!(tables[0].columns.len(), 2);
+        assert_eq!(tables[1].name, "customers");
+        assert_eq!(tables[1].columns.len(), 1);
+    }
+
+    /// Regressão: `information_schema.columns` do MySQL devolve
+    /// `table_name`/`column_name` como `CellValue::Bytes` (flag binária no
+    /// fio, não `Text`) — sem tratar esse caso em `cell_as_text`, o
+    /// explorer de schema descartava toda linha em silêncio e sempre
+    /// mostrava "nenhuma tabela encontrada" contra MySQL real (bug
+    /// observado rodando o app de verdade, não hipotético).
+    #[test]
+    fn tables_from_result_decodes_bytes_columns() {
+        let result = result_set(vec![vec![
+            CellValue::Bytes(b"agents".to_vec()),
+            CellValue::Bytes(b"agent_id".to_vec()),
+            CellValue::Text("int".into()),
+        ]]);
+        let tables = tables_from_result(&result);
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].name, "agents");
+        assert_eq!(tables[0].columns[0].name, "agent_id");
+    }
+
+    #[test]
+    fn tables_from_result_skips_row_with_null_table_name() {
+        let result = result_set(vec![vec![
+            CellValue::Null,
+            CellValue::Text("col".into()),
+            CellValue::Text("int".into()),
+        ]]);
+        assert!(tables_from_result(&result).is_empty());
+    }
 }

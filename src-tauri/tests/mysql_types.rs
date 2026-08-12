@@ -153,6 +153,28 @@ fn plain_int() {
 
 #[test]
 #[ignore]
+fn int_unsigned_column() {
+    RUNTIME.block_on(async {
+        let mut session = session().await;
+        // `information_schema.columns.ordinal_position` é `INT UNSIGNED` de
+        // catálogo — o mesmo tipo que expôs um bug real no explorer de
+        // schema do app (que roda exatamente essa introspecção): sqlx
+        // distingue signed/unsigned no nível de tipo, então decodificar
+        // qualquer coluna UNSIGNED via `try_get::<i64,_>` direto falha com
+        // "mismatched types; Rust type `i64` ... is not compatible with SQL
+        // type `INT UNSIGNED`" — silencioso até rodar contra um catálogo
+        // real, nunca contra os tipos `SIGNED` que os outros testes usam.
+        let value = select_one_cell(
+            &mut *session,
+            "SELECT ordinal_position FROM information_schema.columns LIMIT 1",
+        )
+        .await;
+        assert!(matches!(value, CellValue::Int(_)));
+    });
+}
+
+#[test]
+#[ignore]
 fn double_precision() {
     RUNTIME.block_on(async {
         let mut session = session().await;
