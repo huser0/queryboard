@@ -775,15 +775,18 @@ section > button {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* Coluna única, não grid de duas colunas — a largura de um resultado é
+   imprevisível (uma query pode ter 3 colunas, outra 15) e a contagem de
+   linhas também; lado a lado, isso deixava um vazio de ~200px sempre que
+   um card era mais curto que o vizinho. Empilhado, cada card fica com a
+   altura que o próprio resultado pede, sem competir por espaço com o
+   card ao lado — e uma tabela larga tem o painel inteiro (até 900px,
+   ver .board-panel) pra esticar em vez de ficar espremida numa coluna. */
 .board-grid {
   margin-top: 1rem;
-  display: grid;
-  /* minmax(..., 900px), não 1fr — numa tela ultrawide um card só
-     esticado até a borda do painel fica ilegível; melhor deixar a grade
-     abrir mais colunas do que esticar um card gigante. */
-  grid-template-columns: repeat(auto-fit, minmax(420px, 900px));
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  align-items: start;
 }
 
 .board-panel {
