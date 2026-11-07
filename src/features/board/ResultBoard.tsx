@@ -7,19 +7,25 @@ interface ResultBoardProps {
   executions: Record<string, QueryExecutionState>;
   onRunOne: (slug: string) => void;
   onCancelOne: (slug: string) => void;
+  onReorder?: (source: string, target: string) => void;
 }
 
-export function ResultBoard({ queries, executions, onRunOne, onCancelOne }: ResultBoardProps) {
+export function ResultBoard({ queries, executions, onRunOne, onCancelOne, onReorder }: ResultBoardProps) {
   if (queries.length === 0) {
     return null;
   }
 
   return (
     <div className="board-grid">
-      {queries.map((query) => (
+      {queries.map((query, index) => (
         <QueryPanel
           key={query.slug}
           query={query}
+          onMove={onReorder ? target => { onReorder(query.slug, target); } : undefined}
+          onMoveStep={direction => {
+            const target = queries[index + direction];
+            if (target) onReorder?.(query.slug, target.slug);
+          }}
           state={executions[query.slug] ?? { status: "idle", executionId: null, result: null, error: null }}
           onRun={() => { onRunOne(query.slug); }}
           onCancel={() => { onCancelOne(query.slug); }}

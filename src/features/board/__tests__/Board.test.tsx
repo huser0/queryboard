@@ -222,7 +222,7 @@ describe("Board", () => {
     await user.click(screen.getByRole("checkbox", { name: /consulta oferta/i }));
 
     await user.click(screen.getByRole("button", { name: /adicionar sql ad-hoc/i }));
-    await user.selectOptions(screen.getByLabelText("Conexão"), "queryboard_local");
+    await user.selectOptions(await screen.findByLabelText("Conexão"), "queryboard_local");
     await user.type(
       screen.getByLabelText("Editor de SQL"),
       "SELECT * FROM t WHERE id = :offer_id",

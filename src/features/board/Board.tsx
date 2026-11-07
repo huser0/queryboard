@@ -7,7 +7,7 @@
 // pertence a um módulo `flow/` de verdade (roadmap itens 6/9/10/12), não
 // deve crescer dentro deste componente.
 
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, lazy, Suspense, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { open as openSqlFileDialog } from "@tauri-apps/plugin-dialog";
 import { client, type ResultSet } from "../../ipc/client";
 import type { ConnectionSummary, QuerySummary } from "../../ipc/types";
@@ -15,7 +15,8 @@ import { ParamsPanel } from "../queries/ParamsPanel";
 import { QuerySelector } from "./QuerySelector";
 import { RunAllBar } from "./RunAllBar";
 import { ResultBoard } from "./ResultBoard";
-import { AdhocQueryBlock, type AdhocQueryBlockHandle } from "./AdhocQueryBlock";
+import type { AdhocQueryBlockHandle } from "./AdhocQueryBlock";
+const AdhocQueryBlock = lazy(() => import("./AdhocQueryBlock").then(module => ({ default: module.AdhocQueryBlock })));
 import { AdhocTabs } from "./AdhocTabs";
 import { mergedParamNames, missingParamNames, paramsFor } from "./params";
 import {
@@ -27,6 +28,10 @@ import {
 } from "./types";
 
 interface BoardProps {
+  active?: boolean;
+  view?: "workspace" | "settings" | "all";
+  onOpenSettings?: () => void;
+  storageKey?: string;
   queries: QuerySummary[];
   connections: ConnectionSummary[];
   activeConnectionSlug: string | null;
@@ -60,11 +65,19 @@ function adhocAsQuerySummary(slot: AdhocSlot): QuerySummary {
 }
 
 export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
-  { queries, connections, activeConnectionSlug, onQuerySaved, onQueryDeleted },
+  { queries, connections, activeConnectionSlug, onQuerySaved, onQueryDeleted, storageKey, view = "all", onOpenSettings, active = true },
   ref,
 ) {
   const adhocBlockRef = useRef<AdhocQueryBlockHandle>(null);
-  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const batchCancelled = useRef(false);
+  const batchBusy = useRef(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>(() => {
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem(storageKey ?? "") ?? "[]");
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+    } catch { return []; }
+  });
   const [adhocSlots, setAdhocSlots] = useState<AdhocSlot[]>([]);
   // Qual aba ad-hoc está visível — as outras continuam rodando em
   // segundo plano (ver `executions`), só não estão renderizadas.
@@ -72,20 +85,31 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [executions, setExecutions] = useState<Record<string, QueryExecutionState>>({});
   const [fileOpenError, setFileOpenError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!storageKey) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(selectedSlugs)); }
+    catch { setFileOpenError("Não foi possível salvar a seleção desta página."); }
+  }, [storageKey, selectedSlugs]);
 
-  const selectedQueries = queries.filter((q) => selectedSlugs.includes(q.slug));
+  const selectedQueries = selectedSlugs.flatMap(slug => {
+    const query = queries.find(q => q.slug === slug);
+    return query ? [query] : [];
+  });
   const activeAdhocSlot = adhocSlots.find((s) => s.id === activeAdhocId);
   const runnableAdhoc = adhocSlots.filter(
     (s) => s.connectionSlug !== null && s.sql.trim().length > 0,
   );
-  const adhocSummaries = runnableAdhoc.map(adhocAsQuerySummary);
+  const adhocSummaries = view === "workspace" ? [] : runnableAdhoc.map(adhocAsQuerySummary);
   const boardQueries = [...selectedQueries, ...adhocSummaries];
 
   const paramNames = mergedParamNames(boardQueries);
   const runningRunIds = Object.entries(executions)
     .filter(([, state]) => state.status === "running")
     .map(([runId]) => runId);
-  const anyRunning = runningRunIds.length > 0;
+  const anyRunning = batchRunning || runningRunIds.length > 0;
+  useEffect(() => {
+    if (!active && !anyRunning) setExecutions(previous => Object.keys(previous).length ? {} : previous);
+  }, [active, anyRunning]);
 
   async function runById(runId: string, execute: (executionId: string) => Promise<ResultSet>) {
     const executionId = crypto.randomUUID();
@@ -156,10 +180,27 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
   }
 
   async function handleRunAll() {
-    await Promise.allSettled([
-      ...selectedQueries.map((q) => runSavedQuery(q)),
-      ...runnableAdhoc.map((s) => runAdhocSlot(s)),
-    ]);
+    if (batchBusy.current) return;
+    batchBusy.current = true;
+    batchCancelled.current = false;
+    setBatchRunning(true);
+    const tasks = [
+      ...selectedQueries.map(q => () => runSavedQuery(q)),
+      ...(view === "workspace" ? [] : runnableAdhoc.map(s => () => runAdhocSlot(s))),
+    ];
+    let next = 0;
+    try {
+      await Promise.allSettled(Array.from({ length: Math.min(3, tasks.length) }, async () => {
+        while (!batchCancelled.current) {
+          const task = tasks[next++];
+          if (!task) break;
+          await task();
+        }
+      }));
+    } finally {
+      batchBusy.current = false;
+      setBatchRunning(false);
+    }
   }
 
   // Blocos ad-hoc chamam `runAdhocSlot` direto (RunBar mora dentro do
@@ -180,6 +221,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
   }
 
   function handleCancelAll() {
+    batchCancelled.current = true;
     for (const state of Object.values(executions)) {
       if (state.status === "running" && state.executionId !== null) {
         void client.queryCancel(state.executionId);
@@ -335,8 +377,39 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
     cancelled: boardQueries.filter((q) => executions[q.slug]?.status === "cancelled").length,
   };
 
+  if (!active) return null;
+
   return (
-    <section aria-label="Painel">
+    <>
+      {(paramNames.length > 0 || (view === "workspace" && selectedQueries.length > 0)) && <form className="board-search" aria-label="Pesquisa por parâmetros" onSubmit={event => {
+        event.preventDefault();
+        if (!anyRunning) void handleRunAll();
+      }}>
+        <ParamsPanel
+          paramNames={paramNames}
+          values={paramValues}
+          onChange={(name, value) => { setParamValues(prev => ({ ...prev, [name]: value })); }}
+        />
+        <button type="submit" data-variant="primary" disabled={anyRunning || boardQueries.length === 0}>
+          {anyRunning ? "Pesquisando…" : "Pesquisar"}
+        </button>
+      </form>}
+      {view === "workspace" && selectedQueries.length === 0 && <div className="empty-state"><p>Nenhuma consulta configurada para este workspace.</p><button type="button" onClick={onOpenSettings}>Configurar consultas</button></div>}
+      {view !== "settings" && <ResultBoard
+        onReorder={(source, target) => { setSelectedSlugs(previous => {
+          const from = previous.indexOf(source);
+          const to = previous.indexOf(target);
+          if (from < 0 || to < 0 || from === to) return previous;
+          const next = previous.filter(slug => slug !== source);
+          next.splice(to, 0, source);
+          return next;
+        }); }}
+        queries={selectedQueries}
+        executions={executions}
+        onRunOne={handleRunOne}
+        onCancelOne={handleCancelOne}
+      />}
+    <section aria-label="Painel" hidden={view === "workspace"}>
       <h2>Painel</h2>
       <QuerySelector
         queries={queries}
@@ -345,16 +418,6 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
         onChange={setSelectedSlugs}
         onDelete={handleDeleteQuery}
         onEdit={handleEditQuery}
-      />
-
-      {/* Parâmetros vem ANTES dos blocos (que já têm seu próprio botão
-          "Executar") — senão o campo fica escondido depois do primeiro
-          botão de rodar, e é fácil clicar "Executar" sem nunca ter visto
-          o campo pra preencher. */}
-      <ParamsPanel
-        paramNames={paramNames}
-        values={paramValues}
-        onChange={(name, value) => { setParamValues((prev) => ({ ...prev, [name]: value })); }}
       />
 
       <div className="board-adhoc-zone">
@@ -372,7 +435,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
           />
         )}
         {activeAdhocSlot !== undefined ? (
-          <AdhocQueryBlock
+          <Suspense fallback={<p>Carregando editor SQL…</p>}><AdhocQueryBlock
             key={activeAdhocSlot.id}
             ref={adhocBlockRef}
             slot={activeAdhocSlot}
@@ -383,7 +446,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
             state={executions[activeAdhocSlot.id] ?? IDLE_STATE}
             onRun={() => void runAdhocSlot(activeAdhocSlot)}
             onCancel={() => { handleCancelOne(activeAdhocSlot.id); }}
-          />
+          /></Suspense>
         ) : (
           <div className="empty-state empty-state--action">
             <p>Nenhuma consulta ad-hoc aberta.</p>
@@ -404,12 +467,7 @@ export const Board = forwardRef<BoardHandle, BoardProps>(function Board(
         onCancelAll={handleCancelAll}
         summary={summary}
       />
-      <ResultBoard
-        queries={selectedQueries}
-        executions={executions}
-        onRunOne={handleRunOne}
-        onCancelOne={handleCancelOne}
-      />
     </section>
+    </>
   );
 });

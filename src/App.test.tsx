@@ -5,6 +5,9 @@ import App from "./App";
 import { client } from "./ipc/client";
 import type { ConnectionSummary } from "./ipc/types";
 
+HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+
 vi.mock("./ipc/client", () => ({
   client: {
     connectionList: vi.fn().mockResolvedValue([]),
@@ -42,7 +45,8 @@ const connA: ConnectionSummary = {
 describe("App", () => {
   it("renders the app shell and loads connections/queries from the backend", async () => {
     render(<App />);
-    expect(screen.getByRole("heading", { name: "Conexões" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Conexão" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => {
       expect(client.connectionList).toHaveBeenCalledOnce();
       expect(client.queryList).toHaveBeenCalledOnce();
@@ -60,6 +64,8 @@ describe("App", () => {
     vi.mocked(client.connectionList).mockResolvedValueOnce([connA]);
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: "Conexão" }));
+    expect(screen.getByRole("dialog", { name: "Conexões" })).toBeInTheDocument();
     expect(await screen.findByText(/nenhuma selecionada/i)).toBeInTheDocument();
 
     const connectionButton = await screen.findByRole("button", {

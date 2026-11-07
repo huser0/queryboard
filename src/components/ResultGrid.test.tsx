@@ -38,16 +38,16 @@ describe("ResultGrid", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders column headers in lowercase", () => {
+  it("preserves the original column header casing", () => {
     const result = makeResult({
       rows: [[{ type: "Int", value: 1 }, { type: "Null" }]],
     });
 
     render(<ResultGrid result={result} />);
 
-    expect(screen.getByText("offer_id")).toBeInTheDocument();
-    expect(screen.getByText("preco")).toBeInTheDocument();
-    expect(screen.queryByText("OFFER_ID")).not.toBeInTheDocument();
+    expect(screen.getByText("OFFER_ID")).toBeInTheDocument();
+    expect(screen.getByText("PRECO")).toBeInTheDocument();
+    expect(screen.queryByText("offer_id")).not.toBeInTheDocument();
   });
 
   it("renders null cells with a distinct marker, not empty and not the string 'null'", () => {

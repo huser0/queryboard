@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -18,12 +18,12 @@ interface ResultGridProps {
 export function ResultGrid({ result }: ResultGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const columns = result.columns.map((col, idx) =>
+  const columns = useMemo(() => result.columns.map((col, idx) =>
     columnHelper.accessor((row) => row[idx], {
       id: col.name_lower,
-      header: col.name_lower,
+      header: col.name,
     }),
-  );
+  ), [result.columns]);
 
   const table = useReactTable({
     data: result.rows,
