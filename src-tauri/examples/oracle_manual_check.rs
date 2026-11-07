@@ -39,7 +39,12 @@ async fn session() -> Box<dyn Session> {
 async fn run(session: &mut dyn Session, sql: &str, binds: &[Bind]) -> Vec<Vec<CellValue>> {
     let validated = validate(sql, Dialect::Oracle).expect("sql de teste deveria validar");
     let result = session
-        .execute_select(&validated, binds, &Limits::default(), CancellationToken::new())
+        .execute_select(
+            &validated,
+            binds,
+            &Limits::default(),
+            CancellationToken::new(),
+        )
         .await
         .expect("query deveria executar");
     result.rows
@@ -169,7 +174,12 @@ async fn main() {
     // 8. Erro não vaza credencial
     let validated = validate("SELECT * FROM tabela_que_nao_existe", Dialect::Oracle).unwrap();
     let err = session
-        .execute_select(&validated, &[], &Limits::default(), CancellationToken::new())
+        .execute_select(
+            &validated,
+            &[],
+            &Limits::default(),
+            CancellationToken::new(),
+        )
         .await
         .unwrap_err();
     let msg = err.to_string();

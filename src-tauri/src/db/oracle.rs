@@ -183,7 +183,8 @@ impl Session for OracleSession {
             let mut rows = Vec::new();
             let mut truncated = false;
             for row in result_set {
-                let row = row.map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
+                let row =
+                    row.map_err(|e| DbError::query_failed(redact_username(e, &username), None))?;
                 if rows.len() >= max_rows {
                     truncated = true;
                     break;
